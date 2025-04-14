@@ -196,7 +196,6 @@ footer {
     opacity: 0.8;
 }
 
-<<<<<<< HEAD
 .breadcrumb {
     padding: 0.5rem 1rem;
     background: white;
@@ -258,8 +257,6 @@ footer {
     font-size: 0.9rem;
 }
 
-=======
->>>>>>> e2c93d0277bea1414b8fc7850e170ae517f4fe69
 @media (max-width: 768px) {
     .container {
         padding: 10px;
