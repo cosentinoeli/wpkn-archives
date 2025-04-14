@@ -24,7 +24,7 @@ const environments = {
             s3ForcePathStyle: true,
             signatureVersion: 'v4',
             correctClockSkew: true,
-            endpoint: 'https://s3.amazonaws.com',
+            endpoint: 's3://radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror/recordings/',
             httpOptions: { timeout: 60000 }
         }
     }
