@@ -40,12 +40,14 @@ console.log('S3 client initialized with options:', config.s3Options || 'default'
 
 // Display AWS SDK version and configuration status
 console.log(`AWS SDK Version: ${AWS.VERSION}`);
-console.log(`S3 Endpoint: ${s3.endpoint}`);
+console.log(`S3 Endpoint: ${s3.endpoint ? s3.endpoint.href : 'default'}`);
 
 // Fetch recordings from S3
 async function fetchRecordings() {
     showLoading(true);
     try {
+        console.log('Starting to fetch recordings...');
+        
         // Refresh credentials to ensure they're valid
         await new Promise((resolve, reject) => {
             AWS.config.credentials.refresh(err => {
@@ -54,6 +56,7 @@ async function fetchRecordings() {
                     reject(err);
                 } else {
                     console.log('Credentials refreshed successfully');
+                    console.log('Identity ID:', AWS.config.credentials.identityId);
                     resolve();
                 }
             });
@@ -62,6 +65,7 @@ async function fetchRecordings() {
         console.log(`Fetching recordings from bucket: ${config.bucketName}`);
         
         // Try to list objects from the primary prefix
+        console.log(`Trying primary prefix: ${config.recordingsPrefix}`);
         let data = await attemptListObjects(config.recordingsPrefix);
         
         // If no recordings found and we have alternative prefixes, try those
@@ -120,7 +124,9 @@ async function attemptListObjects(prefix) {
         };
         
         console.log(`Listing objects with params:`, params);
-        return await s3.listObjects(params).promise();
+        const result = await s3.listObjects(params).promise();
+        console.log(`List result for "${prefix}":`, result);
+        return result;
     } catch (error) {
         console.warn(`Failed to list with prefix "${prefix}":`, error);
         return null;
