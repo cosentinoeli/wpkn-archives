@@ -4,12 +4,8 @@ AWS.config.credentials = new AWS.CognitoIdentityCredentials({
     IdentityPoolId: config.identityPoolId
 });
 
-// Environment detection
-const isGitHubPages = window.location.hostname.includes('github.io');
-console.log(`Running in ${isGitHubPages ? 'GitHub Pages' : 'local'} environment`);
-
 // For GitHub Pages, let's try to prevent caching issues
-if (isGitHubPages) {
+if (config.isGitHubPages) {
     AWS.config.httpOptions = { timeout: 30000 };
     console.log("Applied GitHub Pages specific AWS configurations");
 }
@@ -140,7 +136,7 @@ async function attemptListObjects(prefix) {
 
 // Provide additional environment-specific error info
 function getEnvironmentSpecificErrorInfo(error) {
-    if (isGitHubPages) {
+    if (config.isGitHubPages) {
         return "This may be due to CORS restrictions on GitHub Pages or AWS configuration.";
     }
     return "";
@@ -192,14 +188,14 @@ function renderShowGrid() {
                     <div>Duration: ${estimateDuration(recording)}</div>
                 </div>
                 <button class="show-play-btn" aria-label="Play this recording">
-                    <i data-lucide="play" class="play-icon"></i>
+                    <i data-feather="play" class="play-icon"></i>
                 </button>
             </div>
         </div>
     `).join('');
 
-    // Initialize icons for the newly created elements
-    lucide.createIcons();
+    // Initialize Feather icons for the newly created elements
+    feather.replace();
 
     // Add click handlers
     document.querySelectorAll('.show-card').forEach(card => {
@@ -315,11 +311,11 @@ function updateActiveItem(key) {
 // Update play/pause button state with icon
 function updatePlayPauseButton() {
     if (isPlaying) {
-        playPauseIcon.setAttribute('name', 'pause');
+        playPauseIcon.setAttribute('data-feather', 'pause');
     } else {
-        playPauseIcon.setAttribute('name', 'play');
+        playPauseIcon.setAttribute('data-feather', 'play');
     }
-    lucide.createIcons();
+    feather.replace();
 }
 
 // Show/hide loading indicator
@@ -388,8 +384,8 @@ function updateVolumeIcon(volume) {
         iconName = 'volume';
     }
     
-    muteIcon.setAttribute('name', iconName);
-    lucide.createIcons();
+    muteIcon.setAttribute('data-feather', iconName);
+    feather.replace();
 }
 
 searchInput.addEventListener('input', debounce(renderShowGrid, 300));
@@ -432,8 +428,8 @@ function formatTime(seconds) {
 
 // Initialize view
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Lucide icons
-    lucide.createIcons();
+    // Initialize Feather icons
+    feather.replace();
     
     // Set initial volume icon
     updateVolumeIcon(parseInt(volumeSlider.value) / 100);

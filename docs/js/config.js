@@ -1,3 +1,4 @@
+// Determine if we're running on GitHub Pages
 const isGitHubPages = window.location.hostname.includes('github.io');
 
 // Define environment-specific configurations with multiple options to try
@@ -9,6 +10,7 @@ const environments = {
         // Look in recordings/ folder first, then samples
         recordingsPrefix: 'recordings/',
         alternativePrefixes: ['recordings/samples/', '', 'test_recordings/'],
+        isGitHubPages: false,
         s3Options: {} // Default options for local
     },
     githubPages: {
@@ -18,13 +20,14 @@ const environments = {
         // Look in recordings/ folder first, then samples
         recordingsPrefix: 'recordings/',
         alternativePrefixes: ['recordings/samples/', '', 'test_recordings/'],
+        isGitHubPages: true,
         
         // S3 options specifically tuned for GitHub Pages
         s3Options: {
             s3ForcePathStyle: true,
             signatureVersion: 'v4',
             correctClockSkew: true,
-            endpoint: 's3://radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror/recordings/',
+            endpoint: 'https://s3.amazonaws.com',
             httpOptions: { timeout: 60000 }
         }
     }
