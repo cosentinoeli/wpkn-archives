@@ -8,7 +8,10 @@ import boto3
 import requests
 from pydub import AudioSegment
 import sys
+<<<<<<< HEAD
 from datetime import datetime
+=======
+>>>>>>> e2c93d0277bea1414b8fc7850e170ae517f4fe69
 
 # Add the scripts directory to the Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../scripts'))
@@ -133,6 +136,7 @@ def test_integration_recording():
             Subject='Integration Test Complete'
         )
 
+<<<<<<< HEAD
 def create_sample_recording():
     """Create a 1-minute sample recording for the web player."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -168,4 +172,7 @@ def create_sample_recording():
 
 if __name__ == '__main__':
     create_sample_recording()
+=======
+if __name__ == '__main__':
+>>>>>>> e2c93d0277bea1414b8fc7850e170ae517f4fe69
     pytest.main([__file__, '-v'])

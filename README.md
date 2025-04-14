@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # WPKN Radio Archives
 
 This project consists of two main components:
@@ -42,6 +43,8 @@ After deploying the CDK stack, update `/docs/js/config.js` with:
 - Cognito Identity Pool ID
 - AWS region
 
+=======
+>>>>>>> e2c93d0277bea1414b8fc7850e170ae517f4fe69
 # Radio Stream Recorder
 
 An AWS-based solution for recording 24/7 internet radio streams, automatically splitting audio into 2-hour chunks and saving to S3.
