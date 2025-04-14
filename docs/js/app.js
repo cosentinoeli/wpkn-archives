@@ -8,6 +8,12 @@ AWS.config.credentials = new AWS.CognitoIdentityCredentials({
 const isGitHubPages = window.location.hostname.includes('github.io');
 console.log(`Running in ${isGitHubPages ? 'GitHub Pages' : 'local'} environment`);
 
+// For GitHub Pages, let's try to prevent caching issues
+if (isGitHubPages) {
+    AWS.config.httpOptions = { timeout: 30000 };
+    console.log("Applied GitHub Pages specific AWS configurations");
+}
+
 // Initialize variables
 let currentSound = null;
 let recordings = [];
@@ -31,11 +37,33 @@ const nowPlayingText = document.getElementById('nowPlayingText');
 // Initialize S3 client
 const s3 = new AWS.S3();
 
+// Display AWS SDK version and configuration status
+console.log(`AWS SDK Version: ${AWS.VERSION}`);
+console.log(`S3 Endpoint: ${s3.endpoint}`);
+
 // Fetch recordings from S3
 async function fetchRecordings() {
     showLoading(true);
     try {
+        // Check if AWS credentials are properly initialized
+        if (!AWS.config.credentials || !AWS.config.credentials.identityId) {
+            console.warn("AWS credentials not fully initialized, attempting to refresh...");
+            await new Promise((resolve, reject) => {
+                AWS.config.credentials.refresh(err => {
+                    if (err) {
+                        console.error("Failed to refresh credentials:", err);
+                        reject(err);
+                    } else {
+                        console.log("Credentials successfully refreshed");
+                        resolve();
+                    }
+                });
+            });
+        }
+
         console.log(`Fetching recordings from bucket: ${config.bucketName}`);
+        console.log(`Using identity ID: ${AWS.config.credentials.identityId}`);
+        
         const params = {
             Bucket: config.bucketName,
             Prefix: 'recordings/'
@@ -63,7 +91,15 @@ async function fetchRecordings() {
         renderPlaylist();
     } catch (error) {
         console.error('Error fetching recordings:', error);
-        showError(`Failed to load recordings: ${error.message}. ${getEnvironmentSpecificErrorInfo(error)}`);
+        
+        // Special handling for common GitHub Pages + AWS errors
+        if (error.code === "CredentialsError" || error.code === "InvalidAccessKeyId") {
+            showError(`Authentication error: ${error.message}. Please check your Cognito Identity Pool configuration and make sure it allows unauthenticated access.`);
+        } else if (error.code === "NetworkingError" || error.code === "TimeoutError") {
+            showError(`Network error: ${error.message}. This could be due to CORS restrictions. Please ensure your S3 bucket CORS settings allow access from ${window.location.origin}`);
+        } else {
+            showError(`Failed to load recordings: ${error.message}. ${getEnvironmentSpecificErrorInfo(error)}`);
+        }
     } finally {
         showLoading(false);
     }
