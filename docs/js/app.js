@@ -22,7 +22,7 @@ let isPlaying = false;
 // DOM Elements
 const loadingIndicator = document.getElementById('loadingIndicator');
 const errorMessage = document.getElementById('errorMessage');
-const playlist = document.getElementById('playlist');
+const showGrid = document.getElementById('showGrid');
 const searchInput = document.getElementById('searchInput');
 const sortSelect = document.getElementById('sortSelect');
 const playPauseBtn = document.getElementById('playPauseBtn');
@@ -33,6 +33,8 @@ const durationDisplay = document.getElementById('duration');
 const muteBtn = document.getElementById('muteBtn');
 const volumeSlider = document.getElementById('volumeSlider');
 const nowPlayingText = document.getElementById('nowPlayingText');
+const playPauseIcon = playPauseBtn.querySelector('i');
+const muteIcon = muteBtn.querySelector('i');
 
 // Initialize S3 client with environment-specific options
 const s3 = new AWS.S3(config.s3Options || {});
@@ -94,7 +96,10 @@ async function fetchRecordings() {
             .map(item => ({
                 key: item.Key,
                 name: item.Key.split('/').pop(),
-                date: item.LastModified
+                date: item.LastModified,
+                // Extract duration and format metadata
+                title: formatRecordingTitle(item.Key.split('/').pop()),
+                datetime: formatRecordingDateTime(item.Key.split('/').pop())
             }));
 
         console.log(`Found ${recordings.length} MP3 recordings after filtering`);
@@ -105,7 +110,7 @@ async function fetchRecordings() {
         }
         
         sortRecordings();
-        renderPlaylist();
+        renderShowGrid();
     } catch (error) {
         console.error('Error fetching recordings:', error);
         showError(`Failed to load recordings: ${error.message}. ${getEnvironmentSpecificErrorInfo(error)}`);
@@ -150,30 +155,78 @@ function sortRecordings() {
     });
 }
 
-// Render playlist items
-function renderPlaylist() {
+// Extract a nicer title from recording filename
+function formatRecordingTitle(filename) {
+    // Extract date and time from filename pattern "recording_YYYY-MM-DD_HH-MM-SS.mp3"
+    const match = filename.match(/recording_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.mp3/);
+    if (match) {
+        return `WPKN Radio Show`;
+    }
+    return filename.replace('.mp3', '');
+}
+
+// Format recording date from filename
+function formatRecordingDateTime(filename) {
+    const match = filename.match(/recording_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.mp3/);
+    if (match) {
+        const [_, date, time] = match;
+        const formattedTime = time.replace(/-/g, ':');
+        return { date, time: formattedTime };
+    }
+    return { date: 'Unknown Date', time: 'Unknown Time' };
+}
+
+// Render the show grid with card layout
+function renderShowGrid() {
     const searchTerm = searchInput.value.toLowerCase();
     const filteredRecordings = recordings.filter(recording => 
         recording.name.toLowerCase().includes(searchTerm)
     );
 
-    playlist.innerHTML = filteredRecordings.map(recording => `
-        <li data-key="${recording.key}" class="playlist-item">
-            ${formatRecordingName(recording.name)}
-            <span class="recording-date">${formatDate(recording.date)}</span>
-        </li>
+    showGrid.innerHTML = filteredRecordings.map(recording => `
+        <div class="show-card" data-key="${recording.key}">
+            <div class="show-card-content">
+                <h3 class="show-title">${recording.title}</h3>
+                <div class="show-meta">
+                    <div>${recording.datetime.date} • ${recording.datetime.time}</div>
+                    <div>Duration: ${estimateDuration(recording)}</div>
+                </div>
+                <button class="show-play-btn" aria-label="Play this recording">
+                    <i data-lucide="play" class="play-icon"></i>
+                </button>
+            </div>
+        </div>
     `).join('');
 
+    // Initialize icons for the newly created elements
+    lucide.createIcons();
+
     // Add click handlers
-    document.querySelectorAll('.playlist-item').forEach(item => {
-        item.addEventListener('click', () => playRecording(item.dataset.key));
+    document.querySelectorAll('.show-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // Don't trigger if clicking the play button itself
+            if (e.target.closest('.show-play-btn')) {
+                e.stopPropagation();
+                playRecording(card.dataset.key);
+                return;
+            }
+            
+            // Toggle expanded state
+            card.classList.toggle('expanded');
+        });
+        
+        // Add play button click handler
+        const playBtn = card.querySelector('.show-play-btn');
+        playBtn.addEventListener('click', () => {
+            playRecording(card.dataset.key);
+        });
     });
 }
 
-// Format recording name for display
-function formatRecordingName(name) {
-    return name.replace(/recording_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.mp3/, 
-        (_, date, time) => `${date} ${time.replace(/-/g, ':')}`);
+// Estimate duration based on recording size/date
+function estimateDuration(recording) {
+    // For now, return a placeholder. In a real app, you might get this from metadata
+    return "~2 hours";
 }
 
 // Format date for display
@@ -224,6 +277,12 @@ async function playRecording(key) {
     }
 }
 
+// Format recording name for display
+function formatRecordingName(name) {
+    return name.replace(/recording_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.mp3/, 
+        (_, date, time) => `${date} ${time.replace(/-/g, ':')}`);
+}
+
 // Generate presigned URL for S3 object
 async function getSignedUrl(key) {
     console.log(`Generating signed URL for key: ${key}`);
@@ -246,16 +305,21 @@ async function getSignedUrl(key) {
     });
 }
 
-// Update active playlist item
+// Update active card
 function updateActiveItem(key) {
-    document.querySelectorAll('.playlist-item').forEach(item => {
-        item.classList.toggle('active', item.dataset.key === key);
+    document.querySelectorAll('.show-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.key === key);
     });
 }
 
-// Update play/pause button state
+// Update play/pause button state with icon
 function updatePlayPauseButton() {
-    playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+    if (isPlaying) {
+        playPauseIcon.setAttribute('name', 'pause');
+    } else {
+        playPauseIcon.setAttribute('name', 'play');
+    }
+    lucide.createIcons();
 }
 
 // Show/hide loading indicator
@@ -286,7 +350,8 @@ playPauseBtn.addEventListener('click', () => {
 
 progressBar.addEventListener('click', (e) => {
     if (currentSound) {
-        const percent = e.offsetX / progressBar.offsetWidth;
+        const rect = progressBar.getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / progressBar.offsetWidth;
         const duration = currentSound.duration();
         currentSound.seek(duration * percent);
     }
@@ -296,33 +361,63 @@ volumeSlider.addEventListener('input', (e) => {
     if (currentSound) {
         const volume = parseInt(e.target.value) / 100;
         currentSound.volume(volume);
-        muteBtn.textContent = volume === 0 ? '🔇' : '🔊';
+        updateVolumeIcon(volume);
     }
 });
 
 muteBtn.addEventListener('click', () => {
     if (currentSound) {
         const isMuted = currentSound.volume() === 0;
-        currentSound.volume(isMuted ? 1 : 0);
+        const newVolume = isMuted ? 1 : 0;
+        
+        currentSound.volume(newVolume);
         volumeSlider.value = isMuted ? 100 : 0;
-        muteBtn.textContent = isMuted ? '🔊' : '🔇';
+        updateVolumeIcon(newVolume);
     }
 });
 
-searchInput.addEventListener('input', renderPlaylist);
+// Update volume icon based on volume level
+function updateVolumeIcon(volume) {
+    let iconName = 'volume-x';
+    
+    if (volume > 0.7) {
+        iconName = 'volume-2';
+    } else if (volume > 0.3) {
+        iconName = 'volume-1';
+    } else if (volume > 0) {
+        iconName = 'volume';
+    }
+    
+    muteIcon.setAttribute('name', iconName);
+    lucide.createIcons();
+}
+
+searchInput.addEventListener('input', debounce(renderShowGrid, 300));
+
 sortSelect.addEventListener('change', () => {
     sortRecordings();
-    renderPlaylist();
+    renderShowGrid();
 });
+
+// Debounce function to prevent excessive rendering on search input
+function debounce(func, delay) {
+    let timeout;
+    return function() {
+        const context = this;
+        const args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), delay);
+    };
+}
 
 // Update progress bar and time displays
 setInterval(() => {
     if (currentSound && isPlaying) {
         const seek = currentSound.seek() || 0;
         const duration = currentSound.duration() || 0;
-        const progress = (seek / duration) * 100;
+        const progressPercent = (seek / duration) * 100;
         
-        document.getElementById('progress').style.width = `${progress}%`;
+        progress.style.width = `${progressPercent}%`;
         currentTimeDisplay.textContent = formatTime(seek);
         durationDisplay.textContent = formatTime(duration);
     }
@@ -335,5 +430,14 @@ function formatTime(seconds) {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-// Initial load
-fetchRecordings();
+// Initialize view
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize Lucide icons
+    lucide.createIcons();
+    
+    // Set initial volume icon
+    updateVolumeIcon(parseInt(volumeSlider.value) / 100);
+    
+    // Initial recordings fetch
+    fetchRecordings();
+});

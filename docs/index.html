@@ -7,63 +7,98 @@
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1001.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@latest/font/lucide.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>WPKN Radio Archive</h1>
-            <div class="search-container">
+    <!-- Fixed Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="index.html">WPKN</a>
+            </div>
+            <div class="search-wrapper">
                 <input type="text" id="searchInput" placeholder="Search recordings...">
-                <select id="sortSelect">
+                <i data-lucide="search" class="search-icon"></i>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link">Archive</a>
+                <a href="#" class="nav-link">About</a>
+                <select id="sortSelect" class="nav-select">
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
                 </select>
             </div>
-        </header>
+        </div>
+    </nav>
 
-        <main>
-            <div id="loadingIndicator" class="loading hidden">
-                <div class="spinner"></div>
-                <p>Loading recordings...</p>
-            </div>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Radio Archive</h1>
+            <p class="subtitle">Listen. Explore. Repeat.</p>
+        </div>
+    </section>
 
-            <div id="errorMessage" class="error hidden"></div>
+    <div class="container">
+        <!-- Loading & Error Indicators -->
+        <div id="loadingIndicator" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading recordings...</p>
+        </div>
 
-            <div class="playlist-container">
-                <ul id="playlist" class="playlist"></ul>
-            </div>
+        <div id="errorMessage" class="error hidden"></div>
 
-            <div class="player-container">
-                <div id="player" class="audio-player">
-                    <div class="player-controls">
-                        <button id="playPauseBtn" class="control-btn">Play</button>
-                        <div class="progress-container">
-                            <div id="progressBar" class="progress-bar">
-                                <div id="progress" class="progress"></div>
-                            </div>
-                            <span id="currentTime" class="time">0:00</span>
-                            <span id="duration" class="time">0:00</span>
-                        </div>
-                        <div class="volume-container">
-                            <button id="muteBtn" class="control-btn">🔊</button>
-                            <input type="range" id="volumeSlider" min="0" max="100" value="100">
-                        </div>
-                    </div>
-                    <div class="now-playing">
-                        <span>Now Playing:</span>
-                        <span id="nowPlayingText">No track selected</span>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <footer>
-            <p>Powered by WPKN Radio Archive System</p>
-        </footer>
+        <!-- Show Grid -->
+        <div class="shows-heading">
+            <h2>Recent Shows</h2>
+        </div>
+        <div class="show-grid" id="showGrid">
+            <!-- Shows will be dynamically inserted here -->
+        </div>
     </div>
 
-    <!-- Make sure these script references are correct -->
+    <!-- Fixed Bottom Player -->
+    <div class="player-container" id="playerContainer">
+        <div id="player" class="audio-player">
+            <div class="player-now-playing">
+                <div class="now-playing-text">
+                    <span class="now-playing-label">Now Playing:</span>
+                    <span id="nowPlayingText" class="track-title">No track selected</span>
+                </div>
+            </div>
+            
+            <div class="player-controls">
+                <button id="playPauseBtn" class="control-btn play-btn" aria-label="Play">
+                    <i data-lucide="play" class="play-icon"></i>
+                </button>
+                
+                <div class="progress-container">
+                    <span id="currentTime" class="time">0:00</span>
+                    <div id="progressBar" class="progress-bar">
+                        <div id="progress" class="progress"></div>
+                    </div>
+                    <span id="duration" class="time">0:00</span>
+                </div>
+                
+                <div class="volume-container">
+                    <button id="muteBtn" class="control-btn volume-btn" aria-label="Mute">
+                        <i data-lucide="volume-2" class="volume-icon"></i>
+                    </button>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="100" aria-label="Volume">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Initialize Lucide icons
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+    </script>
 </body>
 </html>
