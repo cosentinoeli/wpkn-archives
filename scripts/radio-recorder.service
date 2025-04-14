@@ -5,11 +5,20 @@ After=network.target
 [Service]
 Type=simple
 User=ec2-user
-Environment=S3_BUCKET=${S3_BUCKET}
-Environment=SNS_TOPIC_ARN=${SNS_TOPIC_ARN}
-ExecStart=/usr/bin/python3 /opt/radio-recorder/radio_recorder.py
+# Set explicit environment variables - update with your actual bucket name
+Environment=S3_BUCKET=radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror
+Environment=SNS_TOPIC_ARN=arn:aws:sns:us-east-1:YOUR_ACCOUNT_ID:RadioRecorderTopic
+# Log everything for better diagnostics
+StandardOutput=journal
+StandardError=journal
+# Ensure working directory exists and is writable
+WorkingDirectory=/home/ec2-user
+# Add debugging parameter
+ExecStart=/usr/bin/python3 -u /opt/radio-recorder/radio_recorder.py --debug
 Restart=always
-RestartSec=5
+RestartSec=30
+# Give service 10 seconds to start up before considering it failed
+TimeoutStartSec=10
 
 [Install]
 WantedBy=multi-user.target

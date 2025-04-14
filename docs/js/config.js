@@ -6,16 +6,18 @@ const environments = {
         region: 'us-east-1',
         bucketName: 'radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror',
         identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d',
-        recordingsPrefix: 'recordings/samples/',
+        // Look in recordings/ folder first, then samples
+        recordingsPrefix: 'recordings/',
+        alternativePrefixes: ['recordings/samples/', '', 'test_recordings/'],
         s3Options: {} // Default options for local
     },
     githubPages: {
         region: 'us-east-1',
         bucketName: 'radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror',
         identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d',
-        // Set recordings/samples/ as the primary prefix since we know files exist there
-        recordingsPrefix: 'recordings/samples/',
-        alternativePrefixes: ['recordings/', '', 'test_recordings/'],
+        // Look in recordings/ folder first, then samples
+        recordingsPrefix: 'recordings/',
+        alternativePrefixes: ['recordings/samples/', '', 'test_recordings/'],
         
         // S3 options specifically tuned for GitHub Pages
         s3Options: {
