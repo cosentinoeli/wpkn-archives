@@ -4,6 +4,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as path from 'path';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
 import { Construct } from 'constructs';
@@ -13,12 +14,29 @@ export interface RadioRecorderStackProps extends cdk.StackProps {
 }
 
 export class RadioRecorderStack extends cdk.Stack {
+  public readonly identityPoolId: string;
+
   constructor(scope: Construct, id: string, props?: RadioRecorderStackProps) {
     super(scope, id, props);
 
-    // Create S3 bucket for storing recordings
+    // Add alertEmail as a CloudFormation parameter
+    const alertEmailParam = new cdk.CfnParameter(this, 'alertEmail', {
+      type: 'String',
+      description: 'Email address for error notifications',
+    });
+
+    // Create S3 bucket for storing recordings with CORS
     const recordingsBucket = new s3.Bucket(this, 'RadioRecordings', {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      cors: [
+        {
+          allowedHeaders: ['*'],
+          allowedMethods: [s3.HttpMethods.GET],
+          allowedOrigins: ['*'], // In production, restrict to your GitHub Pages domain
+          exposedHeaders: ['ETag'],
+          maxAge: 3000,
+        },
+      ],
       lifecycleRules: [
         {
           transitions: [
@@ -34,12 +52,10 @@ export class RadioRecorderStack extends cdk.Stack {
     // Create SNS topic for alerts
     const alertTopic = new sns.Topic(this, 'RadioRecorderAlerts');
 
-    // Add email subscription if provided
-    if (props?.alertEmail) {
-      alertTopic.addSubscription(
-        new subscriptions.EmailSubscription(props.alertEmail)
-      );
-    }
+    // Add email subscription using the parameter
+    alertTopic.addSubscription(
+      new subscriptions.EmailSubscription(alertEmailParam.valueAsString)
+    );
 
     // Create VPC
     const vpc = new ec2.Vpc(this, 'RadioRecorderVPC', {
@@ -106,6 +122,41 @@ export class RadioRecorderStack extends cdk.Stack {
       'systemctl start radio-recorder'
     );
 
+    // Create Cognito Identity Pool
+    const identityPool = new cognito.CfnIdentityPool(this, 'RadioRecorderIdentityPool', {
+      allowUnauthenticatedIdentities: true,
+    });
+
+    // Create IAM role for unauthenticated users
+    const unauthRole = new iam.Role(this, 'CognitoDefaultUnauthenticatedRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        'cognito-identity.amazonaws.com',
+        {
+          StringEquals: {
+            'cognito-identity.amazonaws.com:aud': identityPool.ref,
+          },
+          'ForAnyValue:StringLike': {
+            'cognito-identity.amazonaws.com:amr': 'unauthenticated',
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity'
+      ),
+    });
+
+    // Grant read access to the S3 bucket for unauthenticated users
+    recordingsBucket.grantRead(unauthRole);
+
+    // Attach roles to identity pool
+    new cognito.CfnIdentityPoolRoleAttachment(this, 'IdentityPoolRoleAttachment', {
+      identityPoolId: identityPool.ref,
+      roles: {
+        unauthenticated: unauthRole.roleArn,
+      },
+    });
+
+    // Save identity pool ID for use in the frontend
+    this.identityPoolId = identityPool.ref;
+
     // Output important information
     new cdk.CfnOutput(this, 'RecordingsBucketName', {
       value: recordingsBucket.bucketName,
@@ -120,6 +171,12 @@ export class RadioRecorderStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'InstanceId', {
       value: instance.instanceId,
       description: 'ID of the EC2 instance running the recorder',
+    });
+
+    // Add Identity Pool ID to outputs
+    new cdk.CfnOutput(this, 'IdentityPoolId', {
+      value: this.identityPoolId,
+      description: 'ID of the Cognito Identity Pool for web player',
     });
   }
 }

@@ -77,3 +77,34 @@ STREAM_URL = "http://stream.wpkn.org:8080/listen.pls"  # Replace with your strea
 
 3. Check S3 bucket for recordings
 4. Verify SNS topic subscriptions
+
+## Testing
+
+The project includes integration tests to verify core functionality:
+
+- Stream URL accessibility
+- FFmpeg recording capability
+- S3 upload functionality
+- SNS notification system
+
+### Running Tests
+
+1. Install test dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Run the tests:
+   ```bash
+   pytest tests/integration/test_radio_recorder.py -v
+   ```
+
+Note: Some tests use mocked AWS services (via moto), while others require FFmpeg to be installed locally.
+
+### Test Coverage
+
+- `test_stream_url_accessibility`: Verifies the WPKN stream URL is accessible
+- `test_ffmpeg_recording`: Tests FFmpeg's ability to record from the stream
+- `test_s3_upload`: Verifies S3 upload functionality (using mocked S3)
+- `test_sns_notification`: Tests the notification system (using mocked SNS)
+- `test_integration_short_recording`: Full integration test of the recording process
