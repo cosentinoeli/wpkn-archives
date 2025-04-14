@@ -1,6 +1,6 @@
 const isGitHubPages = window.location.hostname.includes('github.io');
 
-// Define environment-specific configurations
+// Define environment-specific configurations with multiple options to try
 const environments = {
     local: {
         region: 'us-east-1',
@@ -11,12 +11,15 @@ const environments = {
         region: 'us-east-1',
         bucketName: 'radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror',
         identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d',
-        // Adding specific endpoint options for GitHub Pages
-        s3ForcePathStyle: true, // Force path style URLs for S3
-        credentials: {
-            // Default role with permissions
-            roleArn: undefined, // Will use the default role associated with the identity pool
-            roleSessionName: 'github-pages-session'
+        
+        // We'll try to use a different S3 endpoint approach for GitHub Pages
+        s3Options: {
+            s3ForcePathStyle: true,
+            signatureVersion: 'v4',
+            correctClockSkew: true,
+            // Sometimes GitHub Pages works better with specific endpoints
+            endpoint: 'https://s3.amazonaws.com',
+            httpOptions: { timeout: 60000 }
         }
     }
 };
@@ -24,6 +27,6 @@ const environments = {
 // Select configuration based on environment
 const config = isGitHubPages ? environments.githubPages : environments.local;
 
-// Log which configuration we're using
+// Add some helpful debug info
 console.log(`Using ${isGitHubPages ? 'GitHub Pages' : 'local'} configuration`);
-console.log('Config:', JSON.stringify(config, null, 2));
+console.log('Config:', config);

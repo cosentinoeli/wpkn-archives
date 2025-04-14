@@ -7,104 +7,335 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
         .container { max-width: 800px; margin: 0 auto; }
-        .log { background: #f4f4f4; padding: 10px; border-radius: 4px; margin-bottom: 10px; white-space: pre-wrap; }
+        .log { background: #f4f4f4; padding: 10px; border-radius: 4px; margin-bottom: 10px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
         .error { color: red; }
         .success { color: green; }
-        button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .warning { color: orange; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
         button:hover { background: #0056b3; }
+        .config-panel { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .fix-button { background: #28a745; }
+        h3 { margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .action-panel { background: #e9ecef; padding: 15px; border-radius: 4px; margin: 15px 0; }
     </style>
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1001.0.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>AWS Connection Test</h1>
+        <h1>AWS Connection Test & Troubleshooter</h1>
+        
+        <div class="config-panel">
+            <h3>Current Configuration</h3>
+            <div id="configDisplay"></div>
+        </div>
+
+        <h3>Test AWS Connectivity</h3>
         <button id="testCredentials">Test AWS Credentials</button>
         <button id="testS3">Test S3 Connection</button>
+        <button id="listBucketContents">List Bucket Contents</button>
         <button id="testCORS">Test CORS Configuration</button>
         
-        <h2>Log Output:</h2>
+        <h3>Advanced Tests</h3>
+        <button id="testS3PathStyle">Test Path-Style Access</button>
+        <button id="testAnonymousAccess">Test Anonymous Access</button>
+        <button id="detectBrowserIssues">Detect Browser Issues</button>
+        
+        <h3>Troubleshooting Actions</h3>
+        <button id="clearAwsCache" class="fix-button">Clear AWS SDK Cache</button>
+        <button id="generateCorsConfig" class="fix-button">Generate CORS Config for AWS Console</button>
+
+        <div class="action-panel" id="fixPanel" style="display:none;">
+            <h3>Recommended Fixes</h3>
+            <div id="fixDescription"></div>
+        </div>
+        
+        <h3>Log Output:</h3>
         <div id="logOutput" class="log"></div>
     </div>
 
     <script src="js/config.js"></script>
     <script>
         const logOutput = document.getElementById('logOutput');
+        const configDisplay = document.getElementById('configDisplay');
+        const fixPanel = document.getElementById('fixPanel');
+        const fixDescription = document.getElementById('fixDescription');
         
-        function log(message, isError = false) {
+        // Display current configuration
+        configDisplay.innerHTML = `
+            <strong>Region:</strong> ${config.region}<br>
+            <strong>S3 Bucket:</strong> ${config.bucketName}<br>
+            <strong>Identity Pool:</strong> ${config.identityPoolId}<br>
+            <strong>Running on:</strong> ${window.location.hostname} (${window.location.origin})<br>
+            <strong>Browser:</strong> ${navigator.userAgent}
+        `;
+        
+        function log(message, type = 'success') {
             const entry = document.createElement('div');
             entry.textContent = `[${new Date().toISOString()}] ${message}`;
-            entry.className = isError ? 'error' : 'success';
+            entry.className = type;
             logOutput.appendChild(entry);
+            logOutput.scrollTop = logOutput.scrollHeight;
             console.log(message);
         }
+        
+        function showFix(title, description) {
+            fixPanel.style.display = 'block';
+            fixDescription.innerHTML = `<h4>${title}</h4><p>${description}</p>`;
+        }
 
-        // Initialize AWS SDK
+        // Initialize AWS SDK with more diagnostic options
+        AWS.config.logger = console;
         AWS.config.region = config.region;
-        AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+        
+        // Try different Cognito credential settings
+        let credentialOptions = {
             IdentityPoolId: config.identityPoolId
-        });
-
-        const s3 = new AWS.S3();
+        };
+        
+        // If on GitHub Pages, add options that might help
+        if (window.location.hostname.includes('github.io')) {
+            credentialOptions.ClientConfig = {
+                region: config.region
+            };
+        }
+        
+        AWS.config.credentials = new AWS.CognitoIdentityCredentials(credentialOptions);
+        
+        // Configure S3 with options that might help with GitHub Pages
+        const s3Options = {};
+        if (window.location.hostname.includes('github.io')) {
+            s3Options.s3ForcePathStyle = true;
+            s3Options.signatureVersion = 'v4';
+        }
+        
+        const s3 = new AWS.S3(s3Options);
 
         // Test AWS Credentials
         document.getElementById('testCredentials').addEventListener('click', async () => {
             try {
-                log('Testing AWS credentials...');
+                log('Testing AWS credentials...', 'warning');
                 
                 await new Promise((resolve, reject) => {
                     AWS.config.credentials.refresh(err => {
                         if (err) {
-                            log(`Credential Error: ${err.message}`, true);
+                            log(`Credential Error: ${err.message}`, 'error');
+                            log(`Error code: ${err.code}`, 'error');
+                            
+                            // Suggest fixes based on error
+                            if (err.code === 'CredentialsError') {
+                                showFix('Cognito Identity Pool Issue', 
+                                    `Make sure your Cognito Identity Pool (${config.identityPoolId}) exists and has 
+                                    "Enable access to unauthenticated identities" enabled. Also check the IAM roles have sufficient permissions.`);
+                            }
                             reject(err);
                         } else {
-                            log(`Credentials successfully refreshed`);
+                            log(`✅ Credentials successfully refreshed`);
                             log(`Identity ID: ${AWS.config.credentials.identityId}`);
+                            log(`Access Key ID: ${AWS.config.credentials.accessKeyId.substring(0,5)}...`);
                             resolve();
                         }
                     });
                 });
             } catch (error) {
-                log(`Test failed: ${error.message}`, true);
+                log(`Test failed: ${error.message}`, 'error');
             }
         });
 
         // Test S3 Connection
         document.getElementById('testS3').addEventListener('click', async () => {
             try {
-                log('Testing S3 connection...');
+                log('Testing S3 connection...', 'warning');
                 
                 const params = { Bucket: config.bucketName };
+                const data = await s3.headBucket(params).promise();
+                
+                log(`✅ Successfully connected to S3 bucket: ${config.bucketName}`);
+                log(`Response: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`S3 connection failed: ${error.message}`, 'error');
+                log(`Error code: ${error.code}`, 'error');
+                
+                if (error.code === 'NoSuchBucket') {
+                    showFix('Bucket Does Not Exist', 
+                        `Double-check the bucket name "${config.bucketName}" - it doesn't appear to exist.`);
+                } else if (error.code === 'AccessDenied') {
+                    showFix('Access Permission Issue', 
+                        `Your IAM role doesn't have permission to access this bucket. Update the IAM policy for the 
+                        unauthenticated role in your Cognito Identity Pool to include s3:ListBucket and s3:GetObject permissions.`);
+                } else if (error.code === 'NetworkingError') {
+                    showFix('CORS Issue', 
+                        `This is likely a CORS configuration issue. Add the following to your S3 bucket CORS configuration:<br>
+                        <pre>{
+  "AllowedHeaders": ["*"],
+  "AllowedMethods": ["GET", "HEAD"],
+  "AllowedOrigins": ["${window.location.origin}"],
+  "ExposeHeaders": ["ETag"],
+  "MaxAgeSeconds": 3000
+}</pre>`);
+                }
+            }
+        });
+
+        // List Bucket Contents
+        document.getElementById('listBucketContents').addEventListener('click', async () => {
+            try {
+                log('Listing bucket contents...', 'warning');
+                
+                const params = { 
+                    Bucket: config.bucketName,
+                    MaxKeys: 10
+                };
+                
                 const data = await s3.listObjects(params).promise();
                 
-                log(`Successfully connected to S3 bucket: ${config.bucketName}`);
-                log(`Found ${data.Contents ? data.Contents.length : 0} objects in the bucket`);
+                if (data.Contents && data.Contents.length > 0) {
+                    log(`✅ Found ${data.Contents.length} objects in bucket`);
+                    data.Contents.forEach(item => {
+                        log(`- ${item.Key} (${item.Size} bytes)`);
+                    });
+                } else {
+                    log('Bucket exists but appears to be empty', 'warning');
+                }
             } catch (error) {
-                log(`S3 connection failed: ${error.message}`, true);
-                log(`Error code: ${error.code}`, true);
+                log(`List operation failed: ${error.message}`, 'error');
+                log(`Error code: ${error.code}`, 'error');
             }
         });
 
         // Test CORS Configuration
         document.getElementById('testCORS').addEventListener('click', async () => {
             try {
-                log('Testing CORS configuration...');
+                log('Testing CORS configuration...', 'warning');
                 
-                const response = await fetch(`https://${config.bucketName}.s3.amazonaws.com/test-cors.txt`, {
-                    method: 'HEAD'
+                const testUrl = `https://${config.bucketName}.s3.amazonaws.com/recordings/test.txt`;
+                log(`Testing URL: ${testUrl}`);
+                
+                const response = await fetch(testUrl, {
+                    method: 'HEAD',
+                    mode: 'cors'
                 });
                 
                 if (response.ok) {
-                    log(`CORS is properly configured! Status: ${response.status}`);
+                    log(`✅ CORS is properly configured! Status: ${response.status}`);
                 } else {
-                    log(`CORS test failed with status: ${response.status}`, true);
+                    log(`CORS test failed with status: ${response.status}`, 'error');
                 }
             } catch (error) {
-                log(`CORS test failed: ${error.message}`, true);
+                log(`CORS test failed: ${error.message}`, 'error');
+                showFix('CORS Configuration Needed', 
+                    `Update your S3 bucket CORS configuration to allow requests from ${window.location.origin}`);
             }
         });
 
+        // Test Path-Style Access
+        document.getElementById('testS3PathStyle').addEventListener('click', async () => {
+            try {
+                log('Testing path-style S3 access...', 'warning');
+                
+                // Create a new S3 client with path style forced
+                const pathStyleS3 = new AWS.S3({
+                    s3ForcePathStyle: true,
+                    signatureVersion: 'v4'
+                });
+                
+                const params = { 
+                    Bucket: config.bucketName,
+                    MaxKeys: 5
+                };
+                
+                const data = await pathStyleS3.listObjects(params).promise();
+                log(`✅ Path-style access successful! Found ${data.Contents ? data.Contents.length : 0} objects`);
+            } catch (error) {
+                log(`Path-style access failed: ${error.message}`, 'error');
+            }
+        });
+
+        // Test Anonymous Access
+        document.getElementById('testAnonymousAccess').addEventListener('click', async () => {
+            try {
+                log('Testing anonymous access...', 'warning');
+                
+                // Try to get a public object without credentials
+                const response = await fetch(`https://${config.bucketName}.s3.amazonaws.com/recordings/`);
+                
+                if (response.ok) {
+                    log(`✅ Anonymous access appears to work! Status: ${response.status}`);
+                } else {
+                    log(`Anonymous access test failed with status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`Anonymous access test failed: ${error.message}`, 'error');
+            }
+        });
+
+        // Detect Browser Issues
+        document.getElementById('detectBrowserIssues').addEventListener('click', () => {
+            log('Checking for browser-specific issues...', 'warning');
+            
+            // Check if running in a private browsing mode
+            try {
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                log('Browser storage is working correctly');
+            } catch (e) {
+                log('Private browsing mode detected - may cause AWS credential storage issues', 'error');
+            }
+            
+            // Check for browser security policies
+            if (window.location.protocol !== 'https:') {
+                log('Running on non-HTTPS connection - some browsers may block AWS requests', 'error');
+            }
+            
+            // Check cookie settings
+            if (navigator.cookieEnabled) {
+                log('Cookies are enabled');
+            } else {
+                log('Cookies are disabled - may cause authentication issues', 'error');
+            }
+        });
+
+        // Clear AWS Cache
+        document.getElementById('clearAwsCache').addEventListener('click', () => {
+            log('Clearing AWS SDK cache and localStorage...', 'warning');
+            
+            // Clear credentials
+            AWS.config.credentials.clearCachedId();
+            
+            // Clear anything AWS related from localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.includes('aws') || key.includes('cognito')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            log('✅ AWS cache cleared. Please refresh the page and try again.');
+        });
+
+        // Generate CORS Config
+        document.getElementById('generateCorsConfig').addEventListener('click', () => {
+            const corsConfig = {
+                CORSRules: [
+                    {
+                        AllowedHeaders: ["*"],
+                        AllowedMethods: ["GET", "HEAD"],
+                        AllowedOrigins: [window.location.origin],
+                        ExposeHeaders: ["ETag"],
+                        MaxAgeSeconds: 3000
+                    }
+                ]
+            };
+            
+            log('Generated CORS configuration for your S3 bucket:', 'success');
+            log(JSON.stringify(corsConfig, null, 2), 'success');
+            
+            showFix('Apply This CORS Configuration', 
+                `To fix CORS issues, go to the AWS S3 Console, select your bucket "${config.bucketName}", 
+                go to Permissions → CORS configuration and paste the configuration shown in the logs.`);
+        });
+
         // Log initial configuration
-        log(`Running test on: ${window.location.hostname}`);
+        log(`Starting diagnostics on: ${window.location.hostname} (${window.location.origin})`);
+        log(`AWS SDK Version: ${AWS.VERSION}`);
         log(`AWS Region: ${AWS.config.region}`);
         log(`S3 Bucket: ${config.bucketName}`);
         log(`Identity Pool: ${config.identityPoolId}`);
