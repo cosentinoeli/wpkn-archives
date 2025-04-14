@@ -7,6 +7,12 @@ lib/**/*.js
 bin/**/*.js
 test/**/*.js
 
+# Allow JavaScript files in the docs folder for GitHub Pages
+!docs/**/*.js
+!docs/js/*.js
+!docs/**/*.css
+!docs/**/*.html
+
 # CDK
 cdk.out/
 cdk.context.json
