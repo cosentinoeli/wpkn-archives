@@ -34,8 +34,9 @@ const muteBtn = document.getElementById('muteBtn');
 const volumeSlider = document.getElementById('volumeSlider');
 const nowPlayingText = document.getElementById('nowPlayingText');
 
-// Initialize S3 client
-const s3 = new AWS.S3();
+// Initialize S3 client with environment-specific options
+const s3 = new AWS.S3(config.s3Options || {});
+console.log('S3 client initialized with options:', config.s3Options || 'default');
 
 // Display AWS SDK version and configuration status
 console.log(`AWS SDK Version: ${AWS.VERSION}`);
@@ -45,38 +46,45 @@ console.log(`S3 Endpoint: ${s3.endpoint}`);
 async function fetchRecordings() {
     showLoading(true);
     try {
-        // Check if AWS credentials are properly initialized
-        if (!AWS.config.credentials || !AWS.config.credentials.identityId) {
-            console.warn("AWS credentials not fully initialized, attempting to refresh...");
-            await new Promise((resolve, reject) => {
-                AWS.config.credentials.refresh(err => {
-                    if (err) {
-                        console.error("Failed to refresh credentials:", err);
-                        reject(err);
-                    } else {
-                        console.log("Credentials successfully refreshed");
-                        resolve();
-                    }
-                });
+        // Refresh credentials to ensure they're valid
+        await new Promise((resolve, reject) => {
+            AWS.config.credentials.refresh(err => {
+                if (err) {
+                    console.error('Error refreshing credentials:', err);
+                    reject(err);
+                } else {
+                    console.log('Credentials refreshed successfully');
+                    resolve();
+                }
             });
-        }
-
+        });
+        
         console.log(`Fetching recordings from bucket: ${config.bucketName}`);
-        console.log(`Using identity ID: ${AWS.config.credentials.identityId}`);
         
-        const params = {
-            Bucket: config.bucketName,
-            Prefix: 'recordings/'
-        };
-
-        const data = await s3.listObjects(params).promise();
-        console.log(`Received ${data.Contents ? data.Contents.length : 0} items from S3`);
+        // Try to list objects from the primary prefix
+        let data = await attemptListObjects(config.recordingsPrefix);
         
-        if (!data.Contents || data.Contents.length === 0) {
-            showError('No recordings found. This could be due to permissions or an empty bucket.');
+        // If no recordings found and we have alternative prefixes, try those
+        if ((!data?.Contents || data.Contents.length === 0) && config.alternativePrefixes) {
+            console.log('No recordings found in primary location, trying alternatives...');
+            
+            for (const prefix of config.alternativePrefixes) {
+                console.log(`Trying alternative prefix: "${prefix}"`);
+                data = await attemptListObjects(prefix);
+                if (data?.Contents && data.Contents.length > 0) {
+                    console.log(`Found ${data.Contents.length} items in "${prefix}"`);
+                    break;
+                }
+            }
+        }
+        
+        if (!data?.Contents || data.Contents.length === 0) {
+            showError('No recordings found. This could be due to permissions, bucket configuration, or an empty bucket.');
             return;
         }
 
+        console.log('Raw list results:', data);
+        
         recordings = data.Contents
             .filter(item => item.Key.endsWith('.mp3'))
             .map(item => ({
@@ -85,23 +93,37 @@ async function fetchRecordings() {
                 date: item.LastModified
             }));
 
-        console.log(`Found ${recordings.length} recordings after filtering`);
+        console.log(`Found ${recordings.length} MP3 recordings after filtering`);
+        
+        if (recordings.length === 0) {
+            showError('No MP3 files found in the bucket. Please check that recordings have been uploaded.');
+            return;
+        }
         
         sortRecordings();
         renderPlaylist();
     } catch (error) {
         console.error('Error fetching recordings:', error);
-        
-        // Special handling for common GitHub Pages + AWS errors
-        if (error.code === "CredentialsError" || error.code === "InvalidAccessKeyId") {
-            showError(`Authentication error: ${error.message}. Please check your Cognito Identity Pool configuration and make sure it allows unauthenticated access.`);
-        } else if (error.code === "NetworkingError" || error.code === "TimeoutError") {
-            showError(`Network error: ${error.message}. This could be due to CORS restrictions. Please ensure your S3 bucket CORS settings allow access from ${window.location.origin}`);
-        } else {
-            showError(`Failed to load recordings: ${error.message}. ${getEnvironmentSpecificErrorInfo(error)}`);
-        }
+        showError(`Failed to load recordings: ${error.message}. ${getEnvironmentSpecificErrorInfo(error)}`);
     } finally {
         showLoading(false);
+    }
+}
+
+// Helper function to attempt listing objects with a specific prefix
+async function attemptListObjects(prefix) {
+    try {
+        const params = {
+            Bucket: config.bucketName,
+            Prefix: prefix || '',
+            MaxKeys: 100
+        };
+        
+        console.log(`Listing objects with params:`, params);
+        return await s3.listObjects(params).promise();
+    } catch (error) {
+        console.warn(`Failed to list with prefix "${prefix}":`, error);
+        return null;
     }
 }
 

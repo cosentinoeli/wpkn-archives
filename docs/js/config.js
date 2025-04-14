@@ -5,19 +5,23 @@ const environments = {
     local: {
         region: 'us-east-1',
         bucketName: 'radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror',
-        identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d'
+        identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d',
+        recordingsPrefix: 'recordings/',
+        s3Options: {} // Default options for local
     },
     githubPages: {
         region: 'us-east-1',
         bucketName: 'radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror',
         identityPoolId: 'us-east-1:5d67a507-3899-4c17-bcaa-1d70bf21b30d',
+        // Try both potential recording paths
+        recordingsPrefix: 'recordings/',
+        alternativePrefixes: ['recordings/samples/', '', 'test_recordings/'],
         
-        // We'll try to use a different S3 endpoint approach for GitHub Pages
+        // S3 options specifically tuned for GitHub Pages
         s3Options: {
             s3ForcePathStyle: true,
             signatureVersion: 'v4',
             correctClockSkew: true,
-            // Sometimes GitHub Pages works better with specific endpoints
             endpoint: 'https://s3.amazonaws.com',
             httpOptions: { timeout: 60000 }
         }
