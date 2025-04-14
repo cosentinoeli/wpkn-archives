@@ -1,0 +1,15 @@
+[Unit]
+Description=Radio Stream Recorder Service
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Environment=S3_BUCKET=${S3_BUCKET}
+Environment=SNS_TOPIC_ARN=${SNS_TOPIC_ARN}
+ExecStart=/usr/bin/python3 /opt/radio-recorder/radio_recorder.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

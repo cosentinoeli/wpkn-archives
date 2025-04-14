@@ -1,0 +1,46 @@
+{
+  "name": "wpkn-archives",
+  "version": "1.0.0",
+  "description": "AWS-based solution for recording internet radio streams",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "diff": "cdk diff",
+    "synth": "cdk synth"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cosentinoeli/wpkn-archives.git"
+  },
+  "keywords": [
+    "radio",
+    "streaming",
+    "aws",
+    "recording"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cosentinoeli/wpkn-archives/issues"
+  },
+  "homepage": "https://github.com/cosentinoeli/wpkn-archives#readme",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "aws-cdk": "^2.0.0",
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@aws-cdk/aws-ec2": "^1.203.0",
+    "@aws-cdk/aws-iam": "^1.203.0",
+    "@aws-cdk/aws-s3": "^1.203.0",
+    "@aws-cdk/aws-sns": "^1.203.0",
+    "@aws-cdk/aws-sns-subscriptions": "^1.203.0"
+  }
+}
