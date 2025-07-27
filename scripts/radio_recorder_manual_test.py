@@ -10,6 +10,10 @@ import argparse
 import logging
 from botocore.exceptions import ClientError
 
+# Set environment variables directly in the script for manual testing
+os.environ['S3_BUCKET'] = "radiorecorderstack-radiorecordings3d118ea0-ypnp78o0qror"
+# SNS is optional, so we can leave it as None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -27,8 +31,8 @@ if args.debug:
     logger.debug("Debug logging enabled")
 
 # Configuration
-STREAM_URL = "https://ice25.securenetsystems.net/WPKN"  # WPKN direct stream URL
-CHUNK_DURATION = 60  # 1 minute in seconds (changed from 7200)
+STREAM_URL = "https://wpkn.streamguys1.com/wpkn-high"  # Updated WPKN stream URL
+CHUNK_DURATION = 60  # 1 minute in seconds (for testing)
 S3_BUCKET = os.environ.get('S3_BUCKET')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
 
@@ -72,7 +76,6 @@ def get_stream_url():
                 return real_url
     except Exception as e:
         logger.error(f"Failed to get stream URL: {str(e)}")
-        notify_error(f"Failed to get stream URL: {str(e)}")
         return STREAM_URL
     return STREAM_URL
 
@@ -156,7 +159,7 @@ def record_stream():
         try:
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             output_file = f"{tmp_dir}/recording_{timestamp}.mp3"
-            s3_object_name = f"recordings/recording_{timestamp}.mp3"
+            s3_object_name = f"recordings/test_recording_{timestamp}.mp3"  # Add 'test_' prefix
             
             logger.info(f"\n--- Starting new recording #{recording_count+1} at {datetime.datetime.now()} ---")
             logger.info(f"Output file: {output_file}")
@@ -228,7 +231,7 @@ def record_stream():
 
 if __name__ == "__main__":
     try:
-        logger.info("Radio Recorder starting")
+        logger.info("Radio Recorder Manual Test starting")
         record_stream()
     except KeyboardInterrupt:
         logger.info("Radio Recorder stopped by user")

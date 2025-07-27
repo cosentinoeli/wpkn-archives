@@ -102,7 +102,24 @@ export class RadioRecorderStack extends cdk.Stack {
     // Add user data script to set up the recording service
     instance.addUserData(
       'yum update -y',
-      'yum install -y ffmpeg python3-pip',
+      'yum install -y python3-pip wget tar xz',
+      
+      // Install FFmpeg using pre-compiled binaries
+      'mkdir -p ~/sources && cd ~/sources',
+      'ARCH=$(uname -m)',
+      'if [[ "$ARCH" == "x86_64" ]]; then',
+      '  FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"',
+      'else',
+      '  FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz"',
+      'fi',
+      'wget -O ffmpeg-release-static.tar.xz $FFMPEG_URL',
+      'tar -xf ffmpeg-release-static.tar.xz',
+      'cd ffmpeg-*-static',
+      'mv ffmpeg ffprobe /usr/local/bin/',
+      'chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe',
+      'cd ~/ && rm -rf ~/sources',
+      
+      // Install Python dependencies
       'pip3 install boto3 requests',
       
       // Create service directory

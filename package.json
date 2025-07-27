@@ -30,17 +30,12 @@
   "homepage": "https://github.com/cosentinoeli/wpkn-archives#readme",
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "aws-cdk": "^2.0.0",
-    "aws-cdk-lib": "^2.0.0",
-    "constructs": "^10.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@aws-cdk/aws-ec2": "^1.203.0",
-    "@aws-cdk/aws-iam": "^1.203.0",
-    "@aws-cdk/aws-s3": "^1.203.0",
-    "@aws-cdk/aws-sns": "^1.203.0",
-    "@aws-cdk/aws-sns-subscriptions": "^1.203.0"
+    "aws-cdk-lib": "^2.0.0",
+    "aws-cdk": "^2.0.0",
+    "constructs": "^10.0.0"
   }
 }
