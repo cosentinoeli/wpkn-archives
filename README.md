@@ -42,6 +42,8 @@ wpkn-archives/
 │   ├── deploy-config.sh.example   # Configuration template
 │   └── radio-recorder.service     # Systemd service template
 ├── 📁 docs/                       # Documentation
+│   ├── DEPLOYMENT_CHECKLIST.md    # Pre and post-deployment checklist
+│   ├── TROUBLESHOOTING.md          # Comprehensive troubleshooting guide
 │   ├── DEPLOYMENT_FIXES.md        # Summary of all fixes applied
 │   └── CLEANUP_SUMMARY.md         # Workspace cleanup documentation
 ├── 📁 infrastructure/             # AWS CDK Infrastructure
@@ -344,6 +346,12 @@ STREAM_URL="http://stream2.com/live" STACK_NAME="RadioRecorder2" ./deploy.sh
 
 ## Troubleshooting
 
+### Quick Reference
+
+For detailed troubleshooting, see:
+- **📋 [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)** - Pre and post-deployment validation
+- **🔧 [Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Comprehensive issue resolution
+
 ### Common Issues
 
 1. **Deployment Fails**
@@ -360,6 +368,9 @@ STREAM_URL="http://stream2.com/live" STACK_NAME="RadioRecorder2" ./deploy.sh
 
 2. **Service Won't Start**
    ```bash
+   # Run comprehensive status check
+   sudo /usr/local/bin/radio-recorder-status
+   
    # Check service logs
    sudo journalctl -u radio-recorder.service --no-pager
    
@@ -381,6 +392,16 @@ STREAM_URL="http://stream2.com/live" STACK_NAME="RadioRecorder2" ./deploy.sh
    # Check local files
    ls -la /mnt/recordings/
    ```
+
+### Automated Fixes
+
+The CDK stack automatically handles common deployment issues:
+
+- ✅ **DNS Resolution**: Automatically replaces problematic hostnames with IP addresses
+- ✅ **MP3 Format**: FFmpeg configured with explicit MP3 format specification
+- ✅ **AWS Region**: Automatically sets region from instance metadata
+- ✅ **Stream Testing**: Validates stream connectivity during deployment
+- ✅ **Service Validation**: Comprehensive startup checks and monitoring
 
 ### Log Analysis
 

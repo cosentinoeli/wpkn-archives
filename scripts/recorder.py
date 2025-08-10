@@ -241,6 +241,7 @@ class StreamRecorder:
             '-t', str(SEGMENT_MINUTES * 60),  # Segment duration in seconds
             '-c:a', 'libmp3lame',  # Use MP3 encoding
             '-b:a', '128k',  # 128kbps bitrate
+            '-f', 'mp3',  # Explicitly specify MP3 format
             '-metadata', f'title=Radio Recording {datetime.now(timezone.utc).isoformat()}',
             '-metadata', f'comment=Stream: {STREAM_URL}',
             '-v', 'warning',  # Reduce verbose output

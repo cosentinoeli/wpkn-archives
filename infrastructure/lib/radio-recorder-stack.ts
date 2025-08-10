@@ -277,10 +277,16 @@ git clone https://github.com/cosentinoeli/wpkn-archives.git /tmp/wpkn-archives
 cp /tmp/wpkn-archives/scripts/recorder.py /opt/radio-recorder/scripts/radio_recorder.py
 chmod +x /opt/radio-recorder/scripts/radio_recorder.py
 
-# Create the Python recorder script embedded version as backup
-cat > /opt/radio-recorder/recorder_embedded.py << 'PYTHON_SCRIPT_EOF'
-${this.getPythonRecorderScript()}
-PYTHON_SCRIPT_EOF
+# Apply DNS resolution fix for WPKN stream
+echo "Applying stream URL DNS resolution fix..."
+STREAM_URL_FIXED="\${streamUrl}"
+
+# Check if stream URL contains ice25.securenetsystems.net and replace with IP
+if echo "\$STREAM_URL_FIXED" | grep -q "ice25.securenetsystems.net"; then
+    echo "Detected ice25.securenetsystems.net hostname, applying IP address fix..."
+    STREAM_URL_FIXED=\$(echo "\$STREAM_URL_FIXED" | sed 's/ice25.securenetsystems.net/162.251.61.22/g')
+    echo "Stream URL updated to: \$STREAM_URL_FIXED"
+fi
 
 # Create requirements.txt
 cat > requirements.txt << 'REQ_EOF'
@@ -309,12 +315,13 @@ After=network-online.target
 Type=simple
 User=ec2-user
 Group=ec2-user
-Environment="STREAM_URL=${streamUrl}"
+Environment="STREAM_URL=\$STREAM_URL_FIXED"
 Environment="S3_BUCKET=${bucketName}"
 Environment="SEGMENT_MINUTES=${segmentMinutes}"
 Environment="OUTPUT_DIR=/mnt/recordings"
 Environment="MAX_DISK_USAGE_PERCENT=80"
 Environment="LOG_LEVEL=INFO"
+Environment="AWS_DEFAULT_REGION=\$(curl -s http://169.254.169.254/latest/meta-data/placement/region)"
 WorkingDirectory=/opt/radio-recorder/scripts
 ExecStart=/usr/bin/python3 /opt/radio-recorder/scripts/radio_recorder.py
 ExecReload=/bin/kill -HUP \$MAINPID
@@ -418,6 +425,24 @@ amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cl
 echo "Starting radio recorder service..."
 systemctl daemon-reload
 systemctl enable radio-recorder.service
+
+# Test stream connectivity before starting service
+echo "Testing stream connectivity..."
+if timeout 10 curl -I "\$STREAM_URL_FIXED" >/dev/null 2>&1; then
+    echo "✅ Stream URL is accessible: \$STREAM_URL_FIXED"
+else
+    echo "⚠️  Warning: Stream URL may not be accessible: \$STREAM_URL_FIXED"
+fi
+
+# Test FFmpeg with the actual stream URL
+echo "Testing FFmpeg with stream URL..."
+if timeout 15 ffmpeg -i "\$STREAM_URL_FIXED" -t 5 -c:a libmp3lame -f mp3 /tmp/test_recording.mp3 -y >/dev/null 2>&1; then
+    echo "✅ FFmpeg can successfully record from stream"
+    rm -f /tmp/test_recording.mp3
+else
+    echo "⚠️  Warning: FFmpeg test recording failed"
+fi
+
 systemctl start radio-recorder.service
 
 # Wait a moment and check status
@@ -425,6 +450,23 @@ sleep 5
 if systemctl is-active --quiet radio-recorder.service; then
     echo "✅ Radio recorder service started successfully"
     systemctl status radio-recorder.service --no-pager
+    
+    # Check if recording starts within 30 seconds
+    echo "Waiting for first recording to start..."
+    for i in {1..6}; do
+        if ls /mnt/recordings/*.tmp >/dev/null 2>&1; then
+            echo "✅ Recording has started successfully"
+            ls -la /mnt/recordings/
+            break
+        fi
+        sleep 5
+    done
+    
+    if ! ls /mnt/recordings/*.tmp >/dev/null 2>&1; then
+        echo "⚠️  Warning: No recording files detected after 30 seconds"
+        echo "Recent service logs:"
+        journalctl -u radio-recorder.service --no-pager -n 10
+    fi
 else
     echo "❌ Radio recorder service failed to start"
     systemctl status radio-recorder.service --no-pager
@@ -439,20 +481,63 @@ echo "=== Radio Recorder Status ==="
 echo "Service Status:"
 systemctl status radio-recorder.service --no-pager
 
+echo -e "\\nService Environment Variables:"
+systemctl show radio-recorder.service -p Environment --no-pager
+
 echo -e "\\nRecent Logs:"
-journalctl -u radio-recorder.service --no-pager -n 10
+journalctl -u radio-recorder.service --no-pager -n 15
 
 echo -e "\\nDisk Usage:"
 df -h /mnt/recordings
 
-echo -e "\\nRecent Recordings:"
-ls -la /mnt/recordings/*.mp3 2>/dev/null | tail -5 || echo "No recordings found"
+echo -e "\\nCurrent Recording Files:"
+ls -la /mnt/recordings/ 2>/dev/null || echo "No files in recordings directory"
 
-echo -e "\\nFFmpeg Version:"
+echo -e "\\nActive Processes:"
+ps aux | grep -E "(ffmpeg|python.*radio)" | grep -v grep || echo "No recording processes found"
+
+echo -e "\\nFFmpeg Version and Capabilities:"
 ffmpeg -version | head -1
+echo "MP3 encoding available: \$(ffmpeg -codecs 2>/dev/null | grep -q libmp3lame && echo '✅ Yes' || echo '❌ No')"
 
-echo -e "\\nAWS CLI Status:"
-aws sts get-caller-identity 2>/dev/null || echo "AWS credentials not configured or accessible"
+echo -e "\\nNetwork Connectivity:"
+STREAM_URL=\$(systemctl show radio-recorder.service -p Environment --value | grep STREAM_URL | cut -d'=' -f2)
+if [ -n "\$STREAM_URL" ]; then
+    echo "Testing stream URL: \$STREAM_URL"
+    if timeout 10 curl -I "\$STREAM_URL" >/dev/null 2>&1; then
+        echo "✅ Stream URL is accessible"
+    else
+        echo "❌ Stream URL is not accessible"
+    fi
+else
+    echo "⚠️  STREAM_URL not found in service environment"
+fi
+
+echo -e "\\nAWS Configuration:"
+echo "Region: \$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo 'Unknown')"
+echo "Instance ID: \$(curl -s http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo 'Unknown')"
+aws sts get-caller-identity 2>/dev/null || echo "AWS credentials not accessible"
+
+echo -e "\\nS3 Bucket Test:"
+S3_BUCKET=\$(systemctl show radio-recorder.service -p Environment --value | grep S3_BUCKET | cut -d'=' -f2)
+if [ -n "\$S3_BUCKET" ]; then
+    echo "Testing S3 bucket: \$S3_BUCKET"
+    if aws s3 ls "s3://\$S3_BUCKET/recordings/" >/dev/null 2>&1; then
+        echo "✅ S3 bucket is accessible"
+        echo "Recent uploads:"
+        aws s3 ls "s3://\$S3_BUCKET/recordings/" --recursive | tail -5 || echo "No uploads found"
+    else
+        echo "❌ S3 bucket is not accessible or empty"
+    fi
+else
+    echo "⚠️  S3_BUCKET not found in service environment"
+fi
+
+echo -e "\\n=== Troubleshooting Commands ==="
+echo "View live logs: sudo journalctl -u radio-recorder.service -f"
+echo "Restart service: sudo systemctl restart radio-recorder.service"
+echo "Check service config: sudo systemctl cat radio-recorder.service"
+echo "Test stream manually: ffmpeg -i \\\$STREAM_URL -t 10 -c:a libmp3lame /tmp/test.mp3 -y"
 STATUS_SCRIPT_EOF
 
 chmod +x /usr/local/bin/radio-recorder-status
@@ -469,279 +554,5 @@ echo "To restart: sudo systemctl restart radio-recorder.service"
 echo ""
 echo "Setup completed at \$(date)"
 `;
-  }
-
-  private getPythonRecorderScript(): string {
-    // Return the full working recorder script
-    return `#!/usr/bin/env python3
-"""
-EC2-based Radio Stream Recorder
-Continuously records from audio stream, segments into 5-minute MP3 files,
-and uploads to S3 with self-healing capabilities.
-"""
-
-import os
-import sys
-import time
-import logging
-import subprocess
-import threading
-import shutil
-import hashlib
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Dict, Any
-import signal
-import json
-
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
-
-
-# Configuration from environment variables
-STREAM_URL = os.getenv('STREAM_URL', 'https://ice25.securenetsystems.net/WPKN')
-S3_BUCKET = os.getenv('S3_BUCKET', 'my-radio-archive')
-SEGMENT_MINUTES = int(os.getenv('SEGMENT_MINUTES', '5'))
-OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/tmp')
-MAX_DISK_USAGE_PERCENT = int(os.getenv('MAX_DISK_USAGE_PERCENT', '80'))
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-
-# Derived values
-CHUNK_DURATION = SEGMENT_MINUTES * 60
-
-# Setup logging
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper()),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/radio-recorder.log')
-    ]
-)
-logger = logging.getLogger('radio_recorder')
-
-
-class RadioRecorder:
-    """Main stream recorder class"""
-    
-    def __init__(self):
-        self.s3_client = boto3.client('s3')
-        self.running = True
-        self.current_process: Optional[subprocess.Popen] = None
-        
-        # Ensure output directory exists
-        Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-        
-        # Verify write access
-        test_file = Path(OUTPUT_DIR) / 'test_write.tmp'
-        try:
-            test_file.write_text('test')
-            test_file.unlink()
-            logger.info(f"Successfully verified write access to {OUTPUT_DIR}")
-        except Exception as e:
-            logger.error(f"Cannot write to {OUTPUT_DIR}: {e}")
-            sys.exit(1)
-        
-        # Setup signal handlers
-        signal.signal(signal.SIGTERM, self._signal_handler)
-        signal.signal(signal.SIGINT, self._signal_handler)
-    
-    def _signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
-        logger.info(f"Received signal {signum}, shutting down gracefully...")
-        self.running = False
-        if self.current_process:
-            self.current_process.terminate()
-    
-    def get_stream_url(self):
-        """Get stream URL - simplified for direct streams"""
-        return STREAM_URL
-    
-    def record_chunk(self, output_file: str, stream_url: str) -> bool:
-        """Record a single chunk"""
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', stream_url,
-            '-t', str(CHUNK_DURATION),
-            '-c:a', 'libmp3lame', '-b:a', '128k',
-            '-v', 'warning',
-            output_file
-        ]
-        
-        logger.debug(f"Executing command: {' '.join(cmd)}")
-        
-        try:
-            self.current_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            stdout, stderr = self.current_process.communicate(timeout=CHUNK_DURATION + 60)
-            
-            if self.current_process.returncode == 0:
-                return True
-            else:
-                logger.error(f"FFmpeg failed with return code {self.current_process.returncode}")
-                if stderr:
-                    logger.error(f"FFmpeg stderr: {stderr}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            logger.warning("FFmpeg process timed out")
-            if self.current_process:
-                self.current_process.terminate()
-            return False
-        except Exception as e:
-            logger.error(f"Error running FFmpeg: {e}")
-            return False
-        finally:
-            self.current_process = None
-    
-    def upload_to_s3(self, local_file: str, s3_key: str) -> bool:
-        """Upload file to S3"""
-        try:
-            self.s3_client.upload_file(
-                local_file, 
-                S3_BUCKET, 
-                s3_key,
-                ExtraArgs={
-                    'ContentType': 'audio/mpeg',
-                    'ServerSideEncryption': 'AES256'
-                }
-            )
-            logger.info(f"Successfully uploaded to s3://{S3_BUCKET}/{s3_key}")
-            return True
-        except Exception as e:
-            logger.error(f"S3 upload failed: {e}")
-            return False
-    
-    def cleanup_local_file(self, file_path: str):
-        """Remove local file after successful upload"""
-        try:
-            os.remove(file_path)
-            logger.info(f"Removed local file: {file_path}")
-        except Exception as e:
-            logger.error(f"Failed to remove local file {file_path}: {e}")
-    
-    def run(self):
-        """Main recording loop"""
-        logger.info("Radio Recorder starting")
-        logger.info(f"Stream URL: {STREAM_URL}")
-        logger.info(f"S3 Bucket: {S3_BUCKET}")
-        logger.info(f"Segment Duration: {SEGMENT_MINUTES} minutes")
-        
-        recording_number = 1
-        
-        while self.running:
-            try:
-                timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')
-                filename = f"recording_{timestamp}.mp3"
-                output_file = os.path.join(OUTPUT_DIR, filename)
-                
-                logger.info(f"\\n--- Starting new recording #{recording_number} at {datetime.now(timezone.utc)} ---")
-                logger.info(f"Output file: {output_file}")
-                logger.info(f"Target S3 location: s3://{S3_BUCKET}/recordings/{filename}")
-                
-                # Get stream URL
-                stream_url = self.get_stream_url()
-                
-                # Record chunk
-                if self.record_chunk(output_file, stream_url):
-                    logger.info(f"Recording completed successfully")
-                    
-                    # Upload to S3
-                    s3_key = f"recordings/{filename}"
-                    if self.upload_to_s3(output_file, s3_key):
-                        # Verify upload
-                        try:
-                            self.s3_client.head_object(Bucket=S3_BUCKET, Key=s3_key)
-                            logger.info(f"Verified: Object exists in S3 at s3://{S3_BUCKET}/{s3_key}")
-                            self.cleanup_local_file(output_file)
-                            logger.info(f"Successfully completed recording #{recording_number}")
-                        except Exception as e:
-                            logger.error(f"S3 verification failed: {e}")
-                    else:
-                        logger.warning(f"Upload failed, keeping local file: {output_file}")
-                else:
-                    logger.error(f"Recording failed for #{recording_number}")
-                    # Clean up failed recording file
-                    if os.path.exists(output_file):
-                        self.cleanup_local_file(output_file)
-                
-                recording_number += 1
-                
-            except KeyboardInterrupt:
-                logger.info("Keyboard interrupt received")
-                break
-            except Exception as e:
-                logger.error(f"Unexpected error: {e}")
-                time.sleep(10)
-        
-        logger.info("Radio Recorder stopped")
-
-
-def check_dependencies():
-    """Check if required dependencies are available"""
-    # Check FFmpeg
-    try:
-        subprocess.run(['ffmpeg', '-version'], 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL, 
-                      check=True)
-        logger.info("FFmpeg found")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.error("FFmpeg not found. Please install FFmpeg.")
-        return False
-    
-    # Check AWS credentials
-    try:
-        boto3.client('s3').list_buckets()
-        logger.info("AWS credentials found")
-    except NoCredentialsError:
-        logger.error("AWS credentials not found. Please configure IAM role or credentials.")
-        return False
-    except Exception as e:
-        logger.warning(f"AWS check failed (may be OK): {e}")
-    
-    return True
-
-
-def main():
-    """Main entry point"""
-    logger.info("Radio Stream Recorder starting up...")
-    
-    # Log configuration
-    logger.info(f"Configuration:")
-    logger.info(f"  STREAM_URL: {STREAM_URL}")
-    logger.info(f"  S3_BUCKET: {S3_BUCKET}")
-    logger.info(f"  SEGMENT_MINUTES: {SEGMENT_MINUTES}")
-    logger.info(f"  OUTPUT_DIR: {OUTPUT_DIR}")
-    
-    # Validate configuration
-    if not STREAM_URL:
-        logger.error("STREAM_URL environment variable not set")
-        sys.exit(1)
-    
-    if not S3_BUCKET:
-        logger.error("S3_BUCKET environment variable not set")
-        sys.exit(1)
-    
-    # Check dependencies
-    if not check_dependencies():
-        sys.exit(1)
-    
-    # Create and run recorder
-    recorder = RadioRecorder()
-    try:
-        recorder.run()
-    except Exception as e:
-        logger.critical(f"Fatal error: {e}")
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()`;
   }
 }
