@@ -274,7 +274,7 @@ cd /opt/radio-recorder
 
 # Clone the latest version from GitHub
 git clone https://github.com/cosentinoeli/wpkn-archives.git /tmp/wpkn-archives
-cp /tmp/wpkn-archives/recorder.py /opt/radio-recorder/scripts/radio_recorder.py
+cp /tmp/wpkn-archives/scripts/recorder.py /opt/radio-recorder/scripts/radio_recorder.py
 chmod +x /opt/radio-recorder/scripts/radio_recorder.py
 
 # Create the Python recorder script embedded version as backup

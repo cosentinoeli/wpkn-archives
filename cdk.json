@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/radio-recorder.ts",
+  "app": "npx ts-node --prefer-ts-exts infrastructure/bin/radio-recorder.ts",
   "watch": {
     "include": [
       "**"
@@ -13,7 +13,7 @@
       "package*.json",
       "yarn.lock",
       "node_modules",
-      "test"
+      "infrastructure/test"
     ]
   },
   "context": {

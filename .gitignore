@@ -124,6 +124,7 @@ recordings/
 # SSH keys (safety measure)
 *.pem
 *.key
+keys/
 
 # Local deployment configs
 deploy-config.sh

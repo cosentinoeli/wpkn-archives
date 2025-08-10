@@ -97,7 +97,7 @@ if [ ! -d "/tmp/wpkn-archives" ]; then
 fi
 
 # Copy the recorder script
-cp /tmp/wpkn-archives/recorder.py /opt/radio-recorder/scripts/radio_recorder.py
+cp /tmp/wpkn-archives/scripts/recorder.py /opt/radio-recorder/scripts/radio_recorder.py
 chmod +x /opt/radio-recorder/scripts/radio_recorder.py
 
 # Create a better requirements.txt with specific versions

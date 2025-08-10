@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/test'],
+  roots: ['<rootDir>/infrastructure/test'],
   testMatch: ['**/*.test.ts'],
   transform: {
     '^.+\\.tsx?$': 'ts-jest'
@@ -10,8 +10,8 @@ module.exports = {
     'lcov'
   ],
   collectCoverageFrom: [
-    'lib/**/*.ts',
-    '!lib/**/*.d.ts',
+    'infrastructure/lib/**/*.ts',
+    '!infrastructure/lib/**/*.d.ts',
   ],
-  setupFilesAfterEnv: ['<rootDir>/test/setup.ts']
+  setupFilesAfterEnv: ['<rootDir>/infrastructure/test/setup.ts']
 };
