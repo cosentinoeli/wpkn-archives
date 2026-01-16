@@ -33,35 +33,6 @@ This AWS CDK (TypeScript) stack deploys a comprehensive radio stream recording s
 - **Security**: IAM roles, security groups, encrypted storage
 - **Scalability**: Easy configuration and deployment
 
-## Project Structure
-
-```
-wpkn-archives/
-├── 📁 config/                     # Configuration files
-│   ├── deploy-config.sh           # Deployment configuration
-│   ├── deploy-config.sh.example   # Configuration template
-│   └── radio-recorder.service     # Systemd service template
-├── 📁 docs/                       # Documentation
-│   ├── DEPLOYMENT_CHECKLIST.md    # Pre and post-deployment checklist
-│   ├── TROUBLESHOOTING.md          # Comprehensive troubleshooting guide
-│   ├── DEPLOYMENT_FIXES.md        # Summary of all fixes applied
-│   └── CLEANUP_SUMMARY.md         # Workspace cleanup documentation
-├── 📁 infrastructure/             # AWS CDK Infrastructure
-│   ├── bin/                       # CDK entry points
-│   ├── lib/                       # CDK stack definitions
-│   └── test/                      # CDK tests
-├── 📁 keys/                       # SSH keys (gitignored)
-│   └── *.pem                      # EC2 SSH keys
-├── 📁 scripts/                    # Deployment and setup scripts
-│   ├── deploy.sh                  # Main CDK deployment script
-│   ├── recorder.py                # Radio recorder Python application
-│   └── setup-ec2.sh              # EC2 instance setup script
-├── 📄 deploy.sh                   # Convenience deployment wrapper
-├── 📄 README.md                   # This documentation
-├── 📄 package.json                # Node.js dependencies
-└── 📄 cdk.json                    # CDK configuration
-```
-
 ## Prerequisites
 
 ### Required Software
@@ -98,7 +69,7 @@ npm install -g aws-cdk
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/cosentinoeli/wpkn-archives.git
+git clone <repository-url>
 cd wpkn-archives
 npm install
 ```
@@ -106,29 +77,32 @@ npm install
 ### 2. Configure Environment
 
 ```bash
-# Copy the configuration template
-cp config/deploy-config.sh.example config/deploy-config.sh
-
-# Edit the configuration file with your settings
-nano config/deploy-config.sh
-
-# Required: Set your EC2 key pair name
+# Required parameters
 export KEY_PAIR_NAME="your-ec2-keypair"
 
-# Optional: Customize other settings
+# Optional parameters (with defaults shown)
 export STREAM_URL="https://ice25.securenetsystems.net/WPKN"  # Default: WPKN Radio
+export S3_BUCKET_NAME="my-radio-recordings"                  # Auto-generated if not set
 export INSTANCE_TYPE="t4g.small"                             # Default: t4g.small (ARM)
+export ALLOWED_SSH_CIDR="10.0.0.0/8"                       # Default: 0.0.0.0/0
+export SEGMENT_MINUTES="5"                                   # Default: 5
 export AWS_REGION="us-east-1"                               # Default: us-east-1
 ```
 
 ### 3. Deploy
 
 ```bash
-# Deploy with the main script (loads config automatically)
+# Make deploy script executable
+chmod +x deploy.sh
+
+# Deploy with default WPKN stream (only KEY_PAIR_NAME required)
+export KEY_PAIR_NAME="your-ec2-keypair"
 ./deploy.sh
 
-# Or deploy directly with the CDK script
-./scripts/deploy.sh
+# Deploy with custom stream
+export STREAM_URL="http://custom-stream.com/live"
+export KEY_PAIR_NAME="your-ec2-keypair"
+./deploy.sh
 ```
 
 ### 4. Alternative CDK Commands
@@ -346,12 +320,6 @@ STREAM_URL="http://stream2.com/live" STACK_NAME="RadioRecorder2" ./deploy.sh
 
 ## Troubleshooting
 
-### Quick Reference
-
-For detailed troubleshooting, see:
-- **📋 [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)** - Pre and post-deployment validation
-- **🔧 [Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Comprehensive issue resolution
-
 ### Common Issues
 
 1. **Deployment Fails**
@@ -368,9 +336,6 @@ For detailed troubleshooting, see:
 
 2. **Service Won't Start**
    ```bash
-   # Run comprehensive status check
-   sudo /usr/local/bin/radio-recorder-status
-   
    # Check service logs
    sudo journalctl -u radio-recorder.service --no-pager
    
@@ -392,16 +357,6 @@ For detailed troubleshooting, see:
    # Check local files
    ls -la /mnt/recordings/
    ```
-
-### Automated Fixes
-
-The CDK stack automatically handles common deployment issues:
-
-- ✅ **DNS Resolution**: Automatically replaces problematic hostnames with IP addresses
-- ✅ **MP3 Format**: FFmpeg configured with explicit MP3 format specification
-- ✅ **AWS Region**: Automatically sets region from instance metadata
-- ✅ **Stream Testing**: Validates stream connectivity during deployment
-- ✅ **Service Validation**: Comprehensive startup checks and monitoring
 
 ### Log Analysis
 

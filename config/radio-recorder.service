@@ -1,0 +1,46 @@
+[Unit]
+Description=Radio Stream Recorder
+Documentation=https://github.com/your/radio-recorder
+After=network.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+Environment="STREAM_URL=__YOUR_STREAM_URL__"
+Environment="S3_BUCKET=__YOUR_BUCKET__"
+Environment="SEGMENT_MINUTES=5"
+Environment="OUTPUT_DIR=/mnt/recordings"
+Environment="MAX_DISK_USAGE_PERCENT=80"
+Environment="LOG_LEVEL=INFO"
+WorkingDirectory=/opt/radio-recorder
+ExecStart=/usr/bin/python3 /opt/radio-recorder/recorder.py
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/mnt/recordings /var/log /tmp
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=radio-recorder
+
+[Install]
+WantedBy=multi-user.target

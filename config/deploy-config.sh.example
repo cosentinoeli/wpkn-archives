@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# AWS CDK Deployment Configuration
+# Copy this file to 'deploy-config.sh' and customize for your deployment
+
+# ================================
+# REQUIRED CONFIGURATION
+# ================================
+
+# EC2 Key Pair name for SSH access (REQUIRED)
+# This key pair must already exist in your AWS account
+export KEY_PAIR_NAME="your-ec2-keypair"
+
+# ================================
+# OPTIONAL CONFIGURATION
+# ================================
+
+# Radio stream URL to record
+# Default: WPKN Community Radio (Bridgeport, CT)
+export STREAM_URL="https://ice25.securenetsystems.net/WPKN"
+
+# S3 bucket name for storing recordings
+# If not set, a unique bucket name will be generated
+# export S3_BUCKET_NAME="my-radio-recordings-$(date +%s)"
+
+# EC2 instance type
+# Options: t4g.nano, t4g.micro, t4g.small, t4g.medium, t4g.large (ARM-based, recommended)
+#          t3.micro, t3.small, t3.medium, t3.large (x86-based, alternative)
+export INSTANCE_TYPE="t4g.small"
+
+# CIDR block allowed to SSH to the instance
+# Default allows access from anywhere (not recommended for production)
+export ALLOWED_SSH_CIDR="0.0.0.0/0"
+
+# Recording segment duration in minutes
+export SEGMENT_MINUTES="5"
+
+# AWS region for deployment
+export AWS_REGION="us-east-1"
+
+# CDK stack name
+export STACK_NAME="RadioRecorderStack"
+
+# ================================
+# ADVANCED CONFIGURATION
+# ================================
+
+# Maximum disk usage percentage before cleanup
+# export MAX_DISK_USAGE_PERCENT="80"
+
+# Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+# export LOG_LEVEL="INFO"
+
+# CloudWatch namespace for custom metrics
+# export CLOUDWATCH_NAMESPACE="RadioRecorder"
+
+# ================================
+# USAGE
+# ================================
+
+# After configuring this file:
+# 1. Make it executable: chmod +x deploy-config.sh
+# 2. Source it: source deploy-config.sh
+# 3. Deploy: ./deploy.sh
+
+echo "Configuration loaded for WPKN radio recorder deployment"
+echo "Stream URL: $STREAM_URL"
+echo "Key Pair: $KEY_PAIR_NAME"
+echo "Instance Type: $INSTANCE_TYPE (ARM-based Graviton2)"
+echo "Region: $AWS_REGION"
+echo ""
+echo "Run './deploy.sh' to deploy the infrastructure"

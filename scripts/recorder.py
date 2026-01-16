@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 """
-EC2-based Radio Stream Recorder (Working Version)
+EC2-based Radio Stream Recorder
 Continuously records from audio stream, segments into 5-minute MP3 files,
 and uploads to S3 with self-healing capabilities.
-
-This version includes all fixes discovered during troubleshooting:
-- Proper FFmpeg codec handling (AAC to MP3 encoding)
-- Simplified stream URL handling for direct streams
-- Improved error handling and logging
-- Robust file management and S3 upload verification
 """
 
 import os
@@ -30,21 +24,21 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 
 # Configuration from environment variables
-STREAM_URL = os.getenv('STREAM_URL', 'https://ice25.securenetsystems.net/WPKN')
+STREAM_URL = os.getenv('STREAM_URL', 'http://radio-stream.example.com/live')
 S3_BUCKET = os.getenv('S3_BUCKET', 'my-radio-archive')
 SEGMENT_MINUTES = int(os.getenv('SEGMENT_MINUTES', '5'))
-OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/tmp')
+OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/mnt/recordings')
 MAX_DISK_USAGE_PERCENT = int(os.getenv('MAX_DISK_USAGE_PERCENT', '80'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-
-# Derived values
-CHUNK_DURATION = SEGMENT_MINUTES * 60
 
 # Reconnection settings
 INITIAL_RECONNECT_DELAY = 5
 MAX_RECONNECT_DELAY = 30
 RECONNECT_MULTIPLIER = 2
 MAX_RECONNECT_ATTEMPTS = 10
+
+# File size threshold for multipart upload (100MB)
+MULTIPART_THRESHOLD = 100 * 1024 * 1024
 
 # Setup logging
 logging.basicConfig(
@@ -55,25 +49,18 @@ logging.basicConfig(
         logging.FileHandler('/var/log/radio-recorder.log')
     ]
 )
-logger = logging.getLogger('radio_recorder')
+logger = logging.getLogger(__name__)
 
 
 class CloudWatchMetrics:
     """CloudWatch custom metrics publisher"""
     
     def __init__(self):
-        try:
-            self.cloudwatch = boto3.client('cloudwatch')
-            self.namespace = 'RadioRecorder'
-        except Exception as e:
-            logger.warning(f"CloudWatch metrics not available: {e}")
-            self.cloudwatch = None
+        self.cloudwatch = boto3.client('cloudwatch')
+        self.namespace = 'RadioRecorder'
     
     def put_metric(self, metric_name: str, value: float, unit: str = 'Count', dimensions: Optional[Dict] = None):
         """Put custom metric to CloudWatch"""
-        if not self.cloudwatch:
-            return
-            
         try:
             metric_data = {
                 'MetricName': metric_name,
@@ -158,7 +145,7 @@ class S3Uploader:
             
             # Calculate file checksum
             md5_hash = self.calculate_md5(filepath)
-            logger.debug(f"Calculated MD5 for {filepath.name}: {md5_hash}")
+            logger.info(f"Calculated MD5 for {filepath.name}: {md5_hash}")
             
             # Prepare metadata
             metadata = {
@@ -179,12 +166,25 @@ class S3Uploader:
                 'Metadata': metadata
             }
             
-            # Upload file
+            # Use multipart upload for large files
             file_size = filepath.stat().st_size
-            self.s3_client.upload_file(
-                str(filepath), self.bucket_name, s3_key,
-                ExtraArgs=extra_args
-            )
+            if file_size > MULTIPART_THRESHOLD:
+                logger.info(f"Using multipart upload for {filepath.name} ({file_size} bytes)")
+                config = boto3.s3.transfer.TransferConfig(
+                    multipart_threshold=MULTIPART_THRESHOLD,
+                    max_concurrency=10,
+                    multipart_chunksize=8 * 1024 * 1024,
+                    use_threads=True
+                )
+                self.s3_client.upload_file(
+                    str(filepath), self.bucket_name, s3_key,
+                    ExtraArgs=extra_args, Config=config
+                )
+            else:
+                self.s3_client.upload_file(
+                    str(filepath), self.bucket_name, s3_key,
+                    ExtraArgs=extra_args
+                )
             
             upload_duration = time.time() - upload_start
             logger.info(f"Successfully uploaded {filepath.name} to s3://{self.bucket_name}/{s3_key} in {upload_duration:.1f}s")
@@ -203,7 +203,7 @@ class S3Uploader:
             return False
 
 
-class RadioRecorder:
+class StreamRecorder:
     """Main stream recorder with self-healing capabilities"""
     
     def __init__(self):
@@ -217,16 +217,6 @@ class RadioRecorder:
         self.running = True
         self.current_process: Optional[subprocess.Popen] = None
         
-        # Verify write access to output directory
-        test_file = self.output_dir / 'test_write.tmp'
-        try:
-            test_file.write_text('test')
-            test_file.unlink()
-            logger.info(f"Successfully verified write access to {OUTPUT_DIR}")
-        except Exception as e:
-            logger.error(f"Cannot write to {OUTPUT_DIR}: {e}")
-            sys.exit(1)
-        
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -238,12 +228,8 @@ class RadioRecorder:
         if self.current_process:
             self.current_process.terminate()
     
-    def get_stream_url(self):
-        """Get stream URL - simplified for direct streams like WPKN"""
-        return STREAM_URL
-    
     def _build_ffmpeg_command(self, output_file: Path) -> list:
-        """Build FFmpeg command with proper MP3 encoding"""
+        """Build FFmpeg command with reconnection parameters and MP3 encoding"""
         return [
             'ffmpeg',
             '-y',  # Overwrite output files
@@ -251,10 +237,11 @@ class RadioRecorder:
             '-reconnect_at_eof', '1',
             '-reconnect_streamed', '1',
             '-reconnect_delay_max', '30',
-            '-i', self.get_stream_url(),
-            '-t', str(CHUNK_DURATION),
-            '-c:a', 'libmp3lame',  # Force MP3 encoding
+            '-i', STREAM_URL,
+            '-t', str(SEGMENT_MINUTES * 60),  # Segment duration in seconds
+            '-c:a', 'libmp3lame',  # Use MP3 encoding
             '-b:a', '128k',  # 128kbps bitrate
+            '-f', 'mp3',  # Explicitly specify MP3 format
             '-metadata', f'title=Radio Recording {datetime.now(timezone.utc).isoformat()}',
             '-metadata', f'comment=Stream: {STREAM_URL}',
             '-v', 'warning',  # Reduce verbose output
@@ -284,7 +271,7 @@ class RadioRecorder:
             )
             
             # Wait for process with timeout
-            timeout = CHUNK_DURATION + 60  # Add 60s buffer
+            timeout = SEGMENT_MINUTES * 60 + 30  # Add 30s buffer
             try:
                 stdout, stderr = self.current_process.communicate(timeout=timeout)
                 return_code = self.current_process.returncode
@@ -303,21 +290,16 @@ class RadioRecorder:
                 temp_file.rename(final_file)
                 
                 actual_duration = time.time() - start_time.timestamp()
-                file_size = final_file.stat().st_size
-                logger.info(f"Recording completed: {filename} (duration: {actual_duration:.1f}s, size: {file_size} bytes)")
+                logger.info(f"Recording completed: {filename} (duration: {actual_duration:.1f}s, size: {final_file.stat().st_size} bytes)")
                 
                 # Send CloudWatch metric
                 self.metrics.put_metric('SegmentDuration', actual_duration, 'Seconds')
-                self.metrics.put_metric('RecordingSuccess', 1, 'Count')
                 
                 return final_file, start_time
             else:
                 logger.error(f"Recording failed with return code {return_code}")
                 if stderr:
                     logger.error(f"FFmpeg stderr: {stderr}")
-                
-                # Send failure metric
-                self.metrics.put_metric('RecordingFailure', 1, 'Count')
                 
                 # Cleanup temp file
                 if temp_file.exists():
@@ -368,27 +350,22 @@ class RadioRecorder:
     
     def run(self):
         """Main recording loop with self-healing"""
-        logger.info("Radio Recorder starting")
-        logger.info(f"Starting recording process using stream URL: {STREAM_URL}")
-        logger.info(f"Recordings will be uploaded to S3 bucket: {S3_BUCKET}")
-        logger.info(f"Each recording will be approximately {SEGMENT_MINUTES/60} hours long")
+        logger.info("Starting radio stream recorder")
+        logger.info(f"Stream URL: {STREAM_URL}")
+        logger.info(f"S3 Bucket: {S3_BUCKET}")
+        logger.info(f"Output Directory: {OUTPUT_DIR}")
+        logger.info(f"Segment Duration: {SEGMENT_MINUTES} minutes")
         
         consecutive_failures = 0
-        recording_number = 1
         
         while self.running:
             try:
-                logger.info(f"\n--- Starting new recording #{recording_number} at {datetime.now(timezone.utc)} ---")
-                
                 # Record segment
                 result = self._record_segment()
                 
                 if result:
                     filepath, start_time = result
                     consecutive_failures = 0
-                    
-                    logger.info(f"Output file: {filepath}")
-                    logger.info(f"Target S3 location: s3://{S3_BUCKET}/recordings/{filepath.name}")
                     
                     # Handle completed segment in background thread
                     upload_thread = threading.Thread(
@@ -397,8 +374,6 @@ class RadioRecorder:
                         daemon=True
                     )
                     upload_thread.start()
-                    
-                    logger.info(f"Successfully completed recording #{recording_number}")
                     
                     # Send heartbeat
                     self.metrics.put_metric('StreamDowntime', 0, 'Seconds')
@@ -427,8 +402,6 @@ class RadioRecorder:
                     # Wait before retry
                     time.sleep(delay)
                 
-                recording_number += 1
-                
             except KeyboardInterrupt:
                 logger.info("Keyboard interrupt received, shutting down...")
                 break
@@ -448,20 +421,8 @@ def check_dependencies():
                       stderr=subprocess.DEVNULL, 
                       check=True)
         logger.info("FFmpeg found")
-        
-        # Test MP3 encoding capability
-        try:
-            subprocess.run([
-                'ffmpeg', '-f', 'lavfi', '-i', 'sine=frequency=1000:duration=1',
-                '-c:a', 'libmp3lame', '-f', 'mp3', '/dev/null', '-y'
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            logger.info("FFmpeg MP3 encoding capability verified")
-        except subprocess.CalledProcessError:
-            logger.error("FFmpeg MP3 encoding not available")
-            return False
-            
     except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.error("FFmpeg not found. Please install FFmpeg with MP3 support.")
+        logger.error("FFmpeg not found. Please install FFmpeg.")
         return False
     
     # Check AWS credentials
@@ -481,21 +442,13 @@ def main():
     """Main entry point"""
     logger.info("Radio Stream Recorder starting up...")
     
-    # Log configuration
-    logger.info(f"Configuration:")
-    logger.info(f"  STREAM_URL: {STREAM_URL}")
-    logger.info(f"  S3_BUCKET: {S3_BUCKET}")
-    logger.info(f"  SEGMENT_MINUTES: {SEGMENT_MINUTES}")
-    logger.info(f"  OUTPUT_DIR: {OUTPUT_DIR}")
-    logger.info(f"  SNS Topic ARN: {os.getenv('SNS_TOPIC_ARN', 'None')}")
-    
     # Validate configuration
-    if not STREAM_URL:
-        logger.error("STREAM_URL environment variable not set")
+    if not STREAM_URL or STREAM_URL == 'http://radio-stream.example.com/live':
+        logger.error("STREAM_URL environment variable not set or using default example")
         sys.exit(1)
     
-    if not S3_BUCKET:
-        logger.error("S3_BUCKET environment variable not set")
+    if not S3_BUCKET or S3_BUCKET == 'my-radio-archive':
+        logger.error("S3_BUCKET environment variable not set or using default example")
         sys.exit(1)
     
     # Check dependencies
@@ -503,7 +456,7 @@ def main():
         sys.exit(1)
     
     # Create and run recorder
-    recorder = RadioRecorder()
+    recorder = StreamRecorder()
     try:
         recorder.run()
     except Exception as e:
