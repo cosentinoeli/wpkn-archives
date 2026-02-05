@@ -212,21 +212,60 @@ function renderRecordings() {
 function renderSchedule(shows, date) {
     scheduleList.innerHTML = '';
     
-    // For demo purposes, show all shows as scheduled
-    // In production, filter by actual schedule data
-    shows.slice(0, 10).forEach(show => {
+    // Filter shows by selected date
+    const targetDate = date || new Date();
+    const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    const todaysShows = shows.filter(show => {
+        if (!show.startTime) return false;
+        const showDate = new Date(show.startTime).toISOString().split('T')[0];
+        return showDate === targetDateStr;
+    });
+    
+    // Sort by start time
+    todaysShows.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    
+    if (todaysShows.length === 0) {
+        scheduleList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No shows scheduled for this date</div>';
+        return;
+    }
+    
+    todaysShows.forEach(show => {
         const item = document.createElement('div');
         item.className = 'schedule-item';
         item.dataset.showId = show.showId;
         
-        // Mock time data (in production, use actual schedule)
-        const time = '12:00 PM';
-        const duration = '2h';
+        // Parse actual time and duration from API data
+        const startTime = new Date(show.startTime);
+        const endTime = new Date(show.endTime);
+        
+        // Format time (12-hour format)
+        const timeString = startTime.toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            hour12: true 
+        });
+        
+        // Calculate and format duration
+        const durationMs = show.duration * 1000; // duration is in seconds
+        const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+        const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        let durationString = '';
+        if (durationHours > 0) {
+            durationString += `${durationHours}h`;
+        }
+        if (durationMinutes > 0) {
+            durationString += `${durationMinutes}m`;
+        }
+        if (durationString === '') {
+            durationString = '0m';
+        }
         
         item.innerHTML = `
-            <span class="col-time">${time}</span>
+            <span class="col-time">${timeString}</span>
             <span class="col-show">${show.showName || 'Unknown'}</span>
-            <span class="col-duration">${duration}</span>
+            <span class="col-duration">${durationString}</span>
         `;
         
         item.addEventListener('click', () => {
