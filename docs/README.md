@@ -2,6 +2,18 @@
 
 This is the Winamp 5-inspired frontend for the WPKN Radio Archives.
 
+## Cache Busting
+
+When updating CSS or JavaScript files, increment the version number in `index.html`:
+
+```html
+<link rel="stylesheet" href="styles.css?v=1.3">
+<script src="config.js?v=1.3"></script>
+<script src="app.js?v=1.3"></script>
+```
+
+This forces browsers to fetch fresh files instead of using cached versions.
+
 ## Configuration
 
 The application dynamically loads its configuration from the `/v1/config` API endpoint. No hardcoded credentials or secrets are stored in this repository.
