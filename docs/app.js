@@ -305,34 +305,42 @@ function filterShows(searchTerm) {
 }
 
 // Playback Functions
-function playRecording(index) {
+async function playRecording(index) {
     if (index < 0 || index >= filteredRecordings.length) return;
     
     currentRecordingIndex = index;
     const recording = filteredRecordings[index];
     
-    // Construct S3 URL
-    const audioUrl = `https://${CONFIG.BUCKET_NAME}.s3.${CONFIG.REGION}.amazonaws.com/${recording.s3Key}`;
-    
-    console.log('Playing:', audioUrl);
-    
-    // Update player
-    audioPlayer.src = audioUrl;
-    trackTitle.textContent = `${recording.showName} - ${new Date(recording.recordingDate).toLocaleDateString()}`;
-    
-    // Highlight playing recording
-    document.querySelectorAll('.recording-item').forEach((item, idx) => {
-        item.classList.remove('playing');
-        if (idx === index) {
-            item.classList.add('playing', 'selected');
+    try {
+        // Get recording details with presigned URL
+        const recordingDetails = await apiGet(`/recordings/${recording.recordingId}`);
+        
+        if (!recordingDetails.audioUrl) {
+            throw new Error('No audio URL available for this recording');
         }
-    });
-    
-    // Play
-    audioPlayer.play().catch(err => {
-        console.error('Playback error:', err);
-        alert('Failed to play recording. The file may not be accessible.');
-    });
+        
+        const audioUrl = recordingDetails.audioUrl;
+        console.log('Playing:', audioUrl);
+        
+        // Update player
+        audioPlayer.src = audioUrl;
+        trackTitle.textContent = `${recording.showName} - ${new Date(recording.recordingDate).toLocaleDateString()}`;
+        
+        // Highlight playing recording
+        document.querySelectorAll('.recording-item').forEach((item, idx) => {
+            item.classList.remove('playing');
+            if (idx === index) {
+                item.classList.add('playing', 'selected');
+            }
+        });
+        
+        // Play
+        await audioPlayer.play();
+        
+    } catch (error) {
+        console.error('Playback error:', error);
+        alert('Failed to play recording. The file may not be accessible or may have failed to record.');
+    }
 }
 
 function play() {
