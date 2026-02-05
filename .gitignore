@@ -1,21 +1,28 @@
+# Dependencies
+node_modules/
+
 # TypeScript
 *.js
 *.d.ts
-node_modules/
+*.js.map
 dist/
 lib/**/*.js
 bin/**/*.js
 test/**/*.js
 
-# Allow JavaScript files in the docs folder for GitHub Pages
+# Allow JavaScript files in docs and frontend folders
 !docs/**/*.js
 !docs/js/*.js
 !docs/**/*.css
 !docs/**/*.html
+!frontend/**/*.js
+!frontend/**/*.css
+!frontend/**/*.html
 
 # CDK
 cdk.out/
 cdk.context.json
+cdk-outputs.json
 .cdk.staging/
 *.tabl.json
 
@@ -33,10 +40,23 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
+# Environment variables and secrets
 .env
+.env.*
 .env.local
 .env.*.local
+*.pem
+*.key
+*.cert
+*.crt
+secrets.json
+config.local.json
+
+# API Keys and credentials (in case accidentally created)
+**/google-credentials.json
+**/aws-credentials.json
+**/*-key.json
+**/*-secret.json
 
 # Python
 __pycache__/
@@ -59,5 +79,89 @@ wheels/
 .installed.cfg
 *.egg
 
-# System Files
+# Lambda Python dependencies (installed with pip install -t .)
+# Keep source files (*.py, requirements.txt, README.md) but ignore installed packages
+lambda/**/boto3/
+lambda/**/boto3-*/
+lambda/**/botocore/
+lambda/**/botocore-*/
+lambda/**/google*/
+lambda/**/googleapis*/
+lambda/**/requests/
+lambda/**/requests-*/
+lambda/**/urllib3/
+lambda/**/urllib3-*/
+lambda/**/certifi/
+lambda/**/certifi-*/
+lambda/**/charset_normalizer/
+lambda/**/charset_normalizer-*/
+lambda/**/idna/
+lambda/**/idna-*/
+lambda/**/s3transfer/
+lambda/**/s3transfer-*/
+lambda/**/jmespath/
+lambda/**/jmespath-*/
+lambda/**/dateutil/
+lambda/**/python_dateutil-*/
+lambda/**/six.py
+lambda/**/six-*/
+lambda/**/oauthlib/
+lambda/**/oauthlib-*/
+lambda/**/proto/
+lambda/**/proto-*/
+lambda/**/protobuf-*/
+lambda/**/pyasn1/
+lambda/**/pyasn1*/
+lambda/**/pycparser/
+lambda/**/pycparser-*/
+lambda/**/pyparsing/
+lambda/**/pyparsing-*/
+lambda/**/rsa/
+lambda/**/rsa-*/
+lambda/**/httplib2/
+lambda/**/httplib2-*/
+lambda/**/apiclient/
+lambda/**/cffi/
+lambda/**/cffi-*/
+lambda/**/cryptography/
+lambda/**/cryptography-*/
+lambda/**/uritemplate/
+lambda/**/uritemplate-*/
+lambda/**/bin/
+lambda/**/*.dist-info/
+lambda/**/*.pyd
+lambda/**/*.so
+
+# Testing
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+test-results/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
 Thumbs.db
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig

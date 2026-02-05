@@ -1,52 +1,152 @@
 # WPKN Radio Archives
 
-This project consists of two main components:
+An automated radio recording and archiving system for WPKN radio station, built with AWS serverless and container technologies.
 
-1. **Radio Recording Infrastructure** (AWS CDK)
-   - Automatically records WPKN radio streams
-   - Stores recordings in S3
-   - Sends notifications via SNS
-   - Uses EC2 for recording process
+## Architecture
 
-2. **Web Player** (GitHub Pages)
-   - Browse and play archived recordings
-   - Search and sort functionality
-   - Mobile-friendly interface
-   - Visit the player: [https://cosentinoeli.github.io/wpkn-archives/](https://cosentinoeli.github.io/wpkn-archives/)
+### Backend Infrastructure (AWS CDK)
 
-## Infrastructure Setup
+- **ECS Fargate** - Containerized recording tasks (ffmpeg) that run on-demand
+- **Lambda Functions** - API Gateway endpoints, schedule management
+- **API Gateway** - RESTful API for shows and recordings
+- **DynamoDB** - Show and recording metadata storage
+- **S3** - Audio file storage with intelligent tiering
+- **EventBridge** - Automated scheduling based on Google Calendar
+- **Secrets Manager** - Secure API key storage
+- **Cognito** - Identity pool for unauthenticated S3 access
 
-1. Install dependencies:
-   ```bash
-   npm install
-   pip install -r requirements.txt
-   ```
+### Frontend (Winamp 5-inspired UI)
 
-2. Deploy AWS infrastructure:
-   ```bash
-   cdk deploy --parameters alertEmail=your.email@example.com
-   ```
+- Located in `/frontend` directory
+- Pure JavaScript (no build step required)
+- Dynamically loads configuration from API
+- Features:
+  - Audio player with waveform visualization
+  - Show schedule browser with date picker
+  - Show library with search
+  - Recordings list per show
+  - Mobile-responsive design
 
-## Web Player Development
+## Setup
 
-The web player is hosted using GitHub Pages from the `/docs` directory. To test locally:
+### Prerequisites
 
-1. Navigate to the docs directory
-2. Run a local server: `python -m http.server 8000`
-3. Visit `http://localhost:8000` in your browser
+```bash
+npm install -g aws-cdk
+npm install
+```
 
-## Configuration
+### AWS Credentials
 
-After deploying the CDK stack, update `/docs/js/config.js` with:
-- Your S3 bucket name
+1. Store Google Calendar API credentials in AWS Secrets Manager:
+```bash
+aws secretsmanager create-secret \
+  --name wpkn/google-calendar \
+  --secret-string '{"apiKey":"YOUR_API_KEY","calendarId":"wpkn.cal@gmail.com"}'
+```
+
+### Deploy Infrastructure
+
+```bash
+cdk bootstrap  # First time only
+cdk deploy
+```
+
+The deployment will output:
+- API Gateway endpoint URL
+- S3 bucket name
 - Cognito Identity Pool ID
-- AWS region
+- ECS cluster ARN
 
-# Radio Stream Recorder
+### Recording System
 
-An AWS-based solution for recording 24/7 internet radio streams, automatically splitting audio into 2-hour chunks and saving to S3.
+The system automatically:
+1. Syncs show schedule from Google Calendar (hourly)
+2. Creates EventBridge rules for each show
+3. Triggers ECS Fargate tasks at scheduled times
+4. Records audio with ffmpeg to MP3 (128kbps)
+5. Uploads to S3 with metadata
+6. Updates DynamoDB with recording details
 
-## Features
+## Frontend Development
+
+Run locally:
+```bash
+cd frontend
+python -m http.server 8080
+```
+
+Visit http://localhost:8080
+
+The frontend automatically fetches configuration from the `/v1/config` API endpoint.
+
+## API Endpoints
+
+- `GET /v1/shows` - List all shows
+- `GET /v1/shows/{id}` - Get show details
+- `GET /v1/recordings` - List all recordings
+- `GET /v1/recordings/{id}` - Get recording details with signed audio URL
+- `GET /v1/config` - Get frontend configuration
+
+## Cost Optimization
+
+- **ECS Fargate**: Pay per second only when recording ($~0.049/hour)
+- **S3 Intelligent Tiering**: Automatic archival after 30 days
+- **Lambda**: Minimal cost for API and scheduling
+- **DynamoDB**: On-demand pricing
+- **Estimated**: $8-15/month for typical schedule
+
+## Project Structure
+
+```
+├── bin/              # CDK app entry point
+├── lib/              # CDK stack definition
+├── lambda/           # Lambda function code
+│   ├── schedule-manager/
+│   ├── config/
+│   └── [API functions]
+├── ecs/              # ECS task definitions
+│   └── record-show/  # Recording container (Python + ffmpeg)
+├── frontend/         # Winamp 5-inspired web player
+│   ├── index.html
+│   ├── styles.css
+│   ├── app.js
+│   └── config.js
+├── scripts/          # Deployment and testing scripts
+└── tests/            # Integration tests
+```
+
+## Deployment Notes
+
+### Building and Pushing Docker Image
+
+```bash
+./scripts/build-and-push.sh
+```
+
+### Testing a Recording
+
+```bash
+./scripts/test-recording.sh "Test Show" 30
+```
+
+### Monitoring
+
+- CloudWatch Logs: `/ecs/wpkn-recording`
+- ECS Tasks: Monitor in AWS Console
+- DynamoDB: Check shows and recordings tables
+
+## Security
+
+- No secrets in repository
+- API keys stored in AWS Secrets Manager
+- Lambda IAM roles with least privilege
+- S3 bucket with CORS for frontend access
+- Cognito identity pool for unauthenticated audio access
+
+## License
+
+MIT
 
 - Continuous recording of internet radio streams
 - Automatic splitting into 2-hour MP3 chunks
