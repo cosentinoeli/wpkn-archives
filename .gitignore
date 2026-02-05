@@ -10,14 +10,11 @@ lib/**/*.js
 bin/**/*.js
 test/**/*.js
 
-# Allow JavaScript files in docs and frontend folders
+# Allow JavaScript files in docs folder (GitHub Pages)
 !docs/**/*.js
 !docs/js/*.js
 !docs/**/*.css
 !docs/**/*.html
-!frontend/**/*.js
-!frontend/**/*.css
-!frontend/**/*.html
 
 # CDK
 cdk.out/
