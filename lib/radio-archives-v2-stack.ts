@@ -326,7 +326,7 @@ export class RadioArchivesV2Stack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         const { DynamoDBClient, GetItemCommand } = require('@aws-sdk/client-dynamodb');
-        const { S3Client, HeadObjectCommand } = require('@aws-sdk/client-s3');
+        const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
         const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
         const { unmarshall } = require('@aws-sdk/util-dynamodb');
         
@@ -363,12 +363,12 @@ export class RadioArchivesV2Stack extends cdk.Stack {
             
             // Generate presigned URL for audio file if s3Key exists
             if (recording.s3Key) {
-              const signedUrl = await getSignedUrl(s3Client, new HeadObjectCommand({
+              const signedUrl = await getSignedUrl(s3Client, new GetObjectCommand({
                 Bucket: process.env.BUCKET_NAME,
                 Key: recording.s3Key,
               }), { expiresIn: 3600 });
               
-              recording.audioUrl = signedUrl.replace('HeadObject', 'GetObject');
+              recording.audioUrl = signedUrl;
             }
             
             return {
