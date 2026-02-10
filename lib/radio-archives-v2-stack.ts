@@ -332,7 +332,7 @@ export class RadioArchivesV2Stack extends cdk.Stack {
         
         exports.handler = async (event) => {
           const dynamoClient = new DynamoDBClient({});
-          const s3Client = new S3Client({});
+          const s3Client = new S3Client({ region: 'us-east-1' });
           const recordingId = event.pathParameters?.id;
           
           if (!recordingId) {
@@ -343,10 +343,29 @@ export class RadioArchivesV2Stack extends cdk.Stack {
             };
           }
           
+          // Parse recordingId to extract recordingDate
+          const dateMatch = recordingId.match(/-(\\d{8})-(\\d+)$/);
+          if (!dateMatch) {
+            return {
+              statusCode: 400,
+              headers: { 'Access-Control-Allow-Origin': '*' },
+              body: JSON.stringify({  
+                error: 'Invalid recording ID format',
+                recordingId: recordingId
+              }),
+            };
+          }
+          
+          const dateStr = dateMatch[1];
+          const recordingDate = dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8);
+          
           try {
             const command = new GetItemCommand({
               TableName: process.env.RECORDINGS_TABLE,
-              Key: { recordingId: { S: recordingId } },
+              Key: { 
+                recordingId: { S: recordingId },
+                recordingDate: { S: recordingDate }
+              },
             });
             
             const response = await dynamoClient.send(command);
@@ -363,12 +382,22 @@ export class RadioArchivesV2Stack extends cdk.Stack {
             
             // Generate presigned URL for audio file if s3Key exists
             if (recording.s3Key) {
-              const signedUrl = await getSignedUrl(s3Client, new GetObjectCommand({
-                Bucket: process.env.BUCKET_NAME,
-                Key: recording.s3Key,
-              }), { expiresIn: 3600 });
-              
-              recording.audioUrl = signedUrl;
+              try {
+                const signedUrl = await getSignedUrl(s3Client, new GetObjectCommand({
+                  Bucket: process.env.BUCKET_NAME,
+                  Key: recording.s3Key,
+                }), { expiresIn: 3600 });
+                
+                recording.audioUrl = signedUrl;
+                console.log('Generated presigned URL for:', recording.s3Key);
+              } catch (s3Error) {
+                console.error('S3 Error generating presigned URL:', s3Error);
+                return {
+                  statusCode: 500,
+                  headers: { 'Access-Control-Allow-Origin': '*' },
+                  body: JSON.stringify({ error: 'Failed to generate audio URL', details: s3Error.message }),
+                };
+              }
             }
             
             return {
@@ -578,11 +607,31 @@ export class RadioArchivesV2Stack extends cdk.Stack {
       },
     });
 
+    // EventBridge role for triggering ECS tasks
+    const eventsTaskRole = new iam.Role(this, 'EventsTaskRole', {
+      assumedBy: new iam.ServicePrincipal('events.amazonaws.com'),
+      description: 'Role for EventBridge to trigger ECS recording tasks',
+    });
+
+    eventsTaskRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['ecs:RunTask'],
+      resources: [recordingTask.taskDefinitionArn],
+    }));
+
+    eventsTaskRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [
+        taskExecutionRole.roleArn,
+        taskRole.roleArn,
+      ],
+    }));
+
     // Store ECS configuration for schedule manager
     scheduleManagerLambda.addEnvironment('CLUSTER_ARN', ecsCluster.clusterArn);
     scheduleManagerLambda.addEnvironment('TASK_DEFINITION_ARN', recordingTask.taskDefinitionArn);
     scheduleManagerLambda.addEnvironment('SUBNET_IDS', vpc.publicSubnets.map(s => s.subnetId).join(','));
     scheduleManagerLambda.addEnvironment('ACCOUNT_ID', cdk.Stack.of(this).account);
+    scheduleManagerLambda.addEnvironment('EVENTS_ROLE_ARN', eventsTaskRole.roleArn);
 
     // ============================================================================
     // COGNITO - User Authentication (optional)

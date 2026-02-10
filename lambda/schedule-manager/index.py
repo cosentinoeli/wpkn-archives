@@ -245,15 +245,11 @@ def schedule_recording_job(show_id: str, start_time: str, end_time: str) -> None
         except:
             show_name = 'Unknown Show'
         
-        # Get AWS region and account
-        region = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
-        account_id = os.environ.get('ACCOUNT_ID', '')
-        
-        # Get task execution role ARN from task definition
-        ecs_client = boto3.client('ecs')
-        task_def = ecs_client.describe_task_definition(taskDefinition=task_definition_arn)
-        execution_role_arn = task_def['taskDefinition']['executionRoleArn']
-        task_role_arn = task_def['taskDefinition']['taskRoleArn']
+        # Get EventBridge role ARN
+        events_role_arn = os.environ.get('EVENTS_ROLE_ARN')
+        if not events_role_arn:
+            logger.error('EVENTS_ROLE_ARN not configured')
+            return
         
         # Add ECS task as target
         events_client.put_targets(
@@ -262,7 +258,7 @@ def schedule_recording_job(show_id: str, start_time: str, end_time: str) -> None
                 {
                     'Id': '1',
                     'Arn': cluster_arn,
-                    'RoleArn': execution_role_arn,
+                    'RoleArn': events_role_arn,
                     'EcsParameters': {
                         'TaskDefinitionArn': task_definition_arn,
                         'TaskCount': 1,
