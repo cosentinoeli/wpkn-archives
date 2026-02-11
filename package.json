@@ -10,7 +10,8 @@
     "cdk": "cdk",
     "deploy": "cdk deploy",
     "diff": "cdk diff",
-    "synth": "cdk synth"
+    "synth": "cdk synth",
+    "update-cache": "./update-cache.sh"
   },
   "repository": {
     "type": "git",
