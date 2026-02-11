@@ -4,15 +4,21 @@ This is the Winamp 5-inspired frontend for the WPKN Radio Archives.
 
 ## Cache Busting
 
-When updating CSS or JavaScript files, increment the version number in `index.html`:
+When updating CSS or JavaScript files, run the cache-busting script to update version numbers:
 
-```html
-<link rel="stylesheet" href="styles.css?v=1.3">
-<script src="config.js?v=1.3"></script>
-<script src="app.js?v=1.3"></script>
+```bash
+./update-cache.sh
 ```
 
-This forces browsers to fetch fresh files instead of using cached versions.
+This automatically updates all version parameters in HTML files with a current timestamp, forcing browsers to fetch fresh files instead of using cached versions.
+
+Alternatively, manually increment the version number in `index.html`:
+
+```html
+<link rel="stylesheet" href="styles.css?v=1770768516">
+<script src="config.js?v=1770768516"></script>
+<script src="app.js?v=1770768516"></script>
+```
 
 ## Configuration
 
