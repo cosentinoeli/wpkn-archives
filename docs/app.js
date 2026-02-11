@@ -214,12 +214,21 @@ function renderSchedule(shows, date) {
     
     // Filter shows by selected date
     const targetDate = date || new Date();
-    const targetDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Use local date components to match user's expectation of "today"
+    const year = targetDate.getFullYear();
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    const targetDateStr = `${year}-${month}-${day}`; // YYYY-MM-DD in local timezone
     
     const todaysShows = shows.filter(show => {
         if (!show.startTime) return false;
-        const showDate = new Date(show.startTime).toISOString().split('T')[0];
-        return showDate === targetDateStr;
+        // Convert show time to local date for comparison
+        const showDateTime = new Date(show.startTime);
+        const showYear = showDateTime.getFullYear();
+        const showMonth = String(showDateTime.getMonth() + 1).padStart(2, '0');
+        const showDay = String(showDateTime.getDate()).padStart(2, '0');
+        const showDateStr = `${showYear}-${showMonth}-${showDay}`;
+        return showDateStr === targetDateStr;
     });
     
     // Sort by start time
@@ -462,8 +471,13 @@ function formatSize(bytes) {
 }
 
 function setToday() {
-    const today = new Date().toISOString().split('T')[0];
-    scheduleDate.value = today;
+    // Use local date instead of UTC to match user's expectation of "today"
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const localDateStr = `${year}-${month}-${day}`;
+    scheduleDate.value = localDateStr;
 }
 
 function showLoading(show) {
