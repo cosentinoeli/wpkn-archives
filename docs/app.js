@@ -90,7 +90,7 @@ function setupEventListeners() {
     
     // Schedule
     scheduleDate.addEventListener('change', (e) => {
-        loadSchedule(new Date(e.target.value));
+        loadSchedule(e.target.value); // Pass date string directly
     });
     todayBtn.addEventListener('click', () => {
         setToday();
@@ -213,12 +213,20 @@ function renderSchedule(shows, date) {
     scheduleList.innerHTML = '';
     
     // Filter shows by selected date
-    const targetDate = date || new Date();
-    // Use local date components to match user's expectation of "today"
+    let targetDate;
+    if (typeof date === 'string') {
+        // Parse date string as local date (not UTC)
+        const [year, month, day] = date.split('-').map(Number);
+        targetDate = new Date(year, month - 1, day); // month is 0-indexed
+    } else {
+        targetDate = date || new Date();
+    }
+    
+    // Use local date components for comparison
     const year = targetDate.getFullYear();
     const month = String(targetDate.getMonth() + 1).padStart(2, '0');
     const day = String(targetDate.getDate()).padStart(2, '0');
-    const targetDateStr = `${year}-${month}-${day}`; // YYYY-MM-DD in local timezone
+    const targetDateStr = `${year}-${month}-${day}`;
     
     const todaysShows = shows.filter(show => {
         if (!show.startTime) return false;
