@@ -92,8 +92,12 @@ class GoogleCalendarClient:
         start = event.get('start', {})
         end = event.get('end', {})
         
-        start_time = start.get('dateTime', start.get('date', ''))
-        end_time = end.get('dateTime', end.get('date', ''))
+        start_time_raw = start.get('dateTime', start.get('date', ''))
+        end_time_raw = end.get('dateTime', end.get('date', ''))
+        
+        # Normalize times to UTC format
+        start_time = normalize_to_utc(start_time_raw)
+        end_time = normalize_to_utc(end_time_raw)
         
         # Extract show information
         show_data = {
@@ -109,6 +113,38 @@ class GoogleCalendarClient:
         }
         
         return show_data
+
+
+def normalize_to_utc(time_str: str) -> str:
+    """
+    Normalize a timestamp to UTC format with 'Z' suffix
+    
+    Args:
+        time_str: Time string in ISO format (possibly with timezone)
+        
+    Returns:
+        UTC time string in format: YYYY-MM-DDTHH:MM:SSZ
+    """
+    if not time_str:
+        return ''
+    
+    try:
+        # Parse the datetime (handles various timezone formats)
+        dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+        
+        # Convert to UTC
+        from datetime import timezone
+        if dt.tzinfo:
+            dt_utc = dt.astimezone(timezone.utc)
+        else:
+            # If naive, assume it's already UTC
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        
+        # Format as ISO string with 'Z' suffix
+        return dt_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    except Exception as e:
+        logger.error(f'Error normalizing timestamp {time_str}: {str(e)}')
+        return time_str  # Return original on error
 
 
 def generate_show_id(show_name: str) -> str:
