@@ -105,7 +105,7 @@ class GoogleCalendarClient:
             'endTime': end_time,
             'duration': calculate_duration(start_time, end_time),
             'recurring': event.get('recurrence') is not None,
-            'lastUpdated': datetime.utcnow().isoformat()
+            'lastUpdated': datetime.utcnow().isoformat() + 'Z'
         }
         
         return show_data

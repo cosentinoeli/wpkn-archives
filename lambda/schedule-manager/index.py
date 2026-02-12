@@ -202,14 +202,13 @@ def schedule_recording_job(show_id: str, start_time: str, end_time: str) -> None
         duration = int((end_dt - start_dt).total_seconds())
         
         # Convert to UTC for scheduling
-        start_utc = start_dt.astimezone(datetime.now().astimezone().tzinfo).astimezone(None)
+        from datetime import timezone
         if start_dt.tzinfo:
             # If timezone-aware, convert to UTC
-            from datetime import timezone
             start_utc = start_dt.astimezone(timezone.utc)
         else:
             # If naive, assume UTC
-            start_utc = start_dt
+            start_utc = start_dt.replace(tzinfo=timezone.utc)
         
         # Only schedule if in the future
         from datetime import timezone
