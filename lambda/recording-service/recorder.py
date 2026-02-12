@@ -140,7 +140,7 @@ def update_recording_status(status: str, error_message: str = None):
         update_expr = 'SET #status = :status, lastUpdated = :updated'
         expr_values = {
             ':status': status,
-            ':updated': datetime.utcnow().isoformat()
+            ':updated': datetime.utcnow().isoformat() + 'Z'
         }
         
         if error_message:
@@ -183,8 +183,8 @@ def update_recording_complete(s3_key: str):
                 ':s3key': s3_key,
                 ':bucket': BUCKET_NAME,
                 ':size': file_size,
-                ':completed': datetime.utcnow().isoformat(),
-                ':updated': datetime.utcnow().isoformat()
+                ':completed': datetime.utcnow().isoformat() + 'Z',
+                ':updated': datetime.utcnow().isoformat() + 'Z'
             }
         )
         logger.info('Recording metadata updated')

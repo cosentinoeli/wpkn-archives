@@ -45,7 +45,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         show_id = event.get('showId')
         show_name = event.get('showName', 'Unknown Show')
         duration = min(int(event.get('duration', 3600)), 840)  # Max 14 min for Lambda
-        start_time = event.get('startTime', datetime.utcnow().isoformat())
+        start_time = event.get('startTime', datetime.utcnow().isoformat() + 'Z')
         recording_date = start_time.split('T')[0]
         
         if not show_id:
@@ -64,8 +64,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'startTime': start_time,
             'duration': duration,
             'status': 'recording',
-            'createdAt': datetime.utcnow().isoformat(),
-            'lastUpdated': datetime.utcnow().isoformat()
+            'createdAt': datetime.utcnow().isoformat() + 'Z',
+            'lastUpdated': datetime.utcnow().isoformat() + 'Z'
         }
         
         recordings_table.put_item(Item=recording_data)
@@ -241,7 +241,7 @@ def update_recording_status(
         update_expr = 'SET #status = :status, lastUpdated = :updated'
         expr_values = {
             ':status': status,
-            ':updated': datetime.utcnow().isoformat()
+            ':updated': datetime.utcnow().isoformat() + 'Z'
         }
         
         if error_message:
@@ -291,8 +291,8 @@ def update_recording_complete(
                 ':s3key': s3_key,
                 ':bucket': BUCKET_NAME,
                 ':size': file_size,
-                ':completed': datetime.utcnow().isoformat(),
-                ':updated': datetime.utcnow().isoformat()
+                ':completed': datetime.utcnow().isoformat() + 'Z',
+                ':updated': datetime.utcnow().isoformat() + 'Z'
             }
         )
         logger.info('Recording metadata updated')

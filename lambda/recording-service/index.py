@@ -47,7 +47,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         show_id = event.get('showId')
         show_name = event.get('showName', 'Unknown Show')
         duration = event.get('duration', 3600)
-        start_time = event.get('startTime', datetime.utcnow().isoformat())
+        start_time = event.get('startTime', datetime.utcnow().isoformat() + 'Z')
         
         if not show_id:
             raise ValueError('showId is required')
@@ -65,7 +65,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'duration': duration,
             'status': 'scheduled',
             'dateKey': start_time.split('T')[0],  # For GSI
-            'createdAt': datetime.utcnow().isoformat()
+            'createdAt': datetime.utcnow().isoformat() + 'Z'
         }
         
         recordings_table.put_item(Item=recording_data)
