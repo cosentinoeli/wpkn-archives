@@ -12,8 +12,9 @@ The Schedule Manager Lambda function automatically syncs events from the WPKN Go
 
 1. Fetches upcoming events (next 7 days) from the calendar
 2. Parses show information (name, start/end times, description)
-3. Stores/updates shows in DynamoDB ShowsTable
-4. Schedules recording jobs for each show
+3. **Normalizes all times to UTC** (Google Calendar returns times in Eastern Time)
+4. Stores/updates shows in DynamoDB ShowsTable with UTC timestamps
+5. Schedules recording jobs for each show using EventBridge cron expressions (in UTC)
 
 ## Testing the Integration
 
@@ -51,11 +52,16 @@ The Lambda function uses:
 The function will capture:
 - Event summary (used as show name)
 - Event description
-- Start and end times
+- Start and end times (converted from calendar's timezone to UTC)
 - Recurrence pattern (if applicable)
 - Event ID (for deduplication)
 
 Each unique show gets an ID generated from the show name (e.g., "Morning Show" → "morning-show").
+
+**Timezone Handling**: Google Calendar events are in Eastern Time (WPKN's location), but all times are automatically converted to UTC (Coordinated Universal Time) with 'Z' suffix before storage. This ensures:
+- Recordings are scheduled at the correct time regardless of server location
+- Frontend can display times in user's local timezone
+- Consistent timestamp format across all services
 
 ## Next Steps
 

@@ -1,7 +1,7 @@
 import os
 import json
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 import logging
 
@@ -202,17 +202,14 @@ def schedule_recording_job(show_id: str, start_time: str, end_time: str) -> None
         duration = int((end_dt - start_dt).total_seconds())
         
         # Convert to UTC for scheduling
-        start_utc = start_dt.astimezone(datetime.now().astimezone().tzinfo).astimezone(None)
         if start_dt.tzinfo:
             # If timezone-aware, convert to UTC
-            from datetime import timezone
             start_utc = start_dt.astimezone(timezone.utc)
         else:
             # If naive, assume UTC
-            start_utc = start_dt
+            start_utc = start_dt.replace(tzinfo=timezone.utc)
         
         # Only schedule if in the future
-        from datetime import timezone
         now = datetime.now(timezone.utc)
         if start_utc <= now:
             logger.info(f'Show {show_id} already started or in past (start: {start_utc}, now: {now}), skipping scheduling')
